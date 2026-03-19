@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
                 </a>
               </div>
               <div style="background:#f9f9f9;padding:20px 32px;font-size:11px;color:#aaa;border-top:1px solid #eee;text-align:center;">
-                © ${new Date().getFullYear()} Alfima Realty Inc. · Quezon City, Metro Manila<br/>
+                © ${new Date().getFullYear()} Alfima Realty Inc.<br/>
                 <a href="${siteUrl}/unsubscribe?email=${encodeURIComponent(email)}" style="color:#c0392b;">Unsubscribe</a>
               </div>
             </div>
