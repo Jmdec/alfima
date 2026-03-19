@@ -16,11 +16,11 @@ export function CTASection() {
                 Browse Properties
               </Button>
             </Link>
-            <Link href="/list-property">
+            {/* <Link href="/list-property">
               <Button className="bg-white/20 hover:bg-white/30 text-white font-bold text-lg px-8 py-6 border border-white/30">
                 List Your Property
               </Button>
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>
