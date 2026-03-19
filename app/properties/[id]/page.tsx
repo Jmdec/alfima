@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState, use } from 'react';
 import { Property } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { useFavorites } from '@/lib/store';
+import { useFavorites, useAuth } from '@/lib/store';
 import {
   Heart, MapPin, Phone, Mail, Share2, ChevronLeft, ChevronRight,
   X, Search, CheckCircle2, User, MessageSquare, Calendar,
-  ArrowRight, Loader2, Building2, Clock, Video, Home
+  ArrowRight, Loader2, Building2, Clock, Video, Home, Lock
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -91,12 +91,37 @@ const s = {
     outline: 'none', transition: 'border 0.15s',
     background: '#fafafa', boxSizing: 'border-box' as const,
   }),
+  readonlyInput: {
+    width: '100%', padding: '11px 14px',
+    border: '1.5px solid #e5e7eb',
+    borderRadius: 10, fontSize: 14, color: '#6b7280',
+    outline: 'none', background: '#f3f4f6',
+    boxSizing: 'border-box' as const,
+    cursor: 'not-allowed' as const,
+  },
   label: {
     display: 'block', fontSize: 13, fontWeight: 600,
     color: '#374151', marginBottom: 6,
   },
   fieldGroup: { marginBottom: 16 },
 };
+
+// ── Logged-in banner ──────────────────────────────────────────────────────────
+function LoggedInBanner() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '9px 14px', background: '#f0fdf4',
+      border: '1.5px solid #bbf7d0', borderRadius: 10, marginBottom: 16,
+    }}>
+      <Lock size={13} color="#16a34a" />
+      <span style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>
+        Auto-filled from your account&nbsp;·&nbsp;
+        <span style={{ fontWeight: 400 }}>contact fields are locked</span>
+      </span>
+    </div>
+  );
+}
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 function StepIndicator({ step }: { step: ModalStep }) {
@@ -340,14 +365,17 @@ interface PropertySnapshot {
 
 // ── Lead Form Step ────────────────────────────────────────────────────────────
 function LeadFormStep({
-  agent, form, setForm, onSubmit, onBack, onClose, submitting, property, canGoBack,
+  agent, form, setForm, onSubmit, onBack, onClose, submitting, property, canGoBack, lockedFields,
 }: {
   agent: Agent; form: LeadForm; setForm: (f: LeadForm) => void;
   onSubmit: () => void; onBack: () => void; onClose: () => void;
   submitting: boolean; property: PropertySnapshot; canGoBack?: boolean;
+  lockedFields?: { name?: boolean; phone?: boolean; email?: boolean };
 }) {
   const [errors,  setErrors]  = useState<Partial<Record<keyof LeadForm, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof LeadForm, boolean>>>({});
+
+  const isLocked = (field: 'name' | 'phone' | 'email') => !!lockedFields?.[field];
 
   const runValidator = (key: keyof LeadForm, val: string): string | null => {
     if (key in VALIDATORS) return VALIDATORS[key as ValidatableField](val);
@@ -355,12 +383,14 @@ function LeadFormStep({
   };
 
   const touch = (key: keyof LeadForm) => {
+    if (isLocked(key as any)) return;
     setTouched(prev => ({ ...prev, [key]: true }));
     const err = runValidator(key, form[key] as string);
     setErrors(prev => ({ ...prev, [key]: err ?? undefined }));
   };
 
   const update = (key: keyof LeadForm, val: string) => {
+    if (isLocked(key as any)) return;
     if (key === 'phone') val = val.replace(/[^\d+\s\-()]/g, '');
     if (key === 'name')  val = val.replace(/[0-9]/g, '');
     setForm({ ...form, [key]: val });
@@ -373,6 +403,8 @@ function LeadFormStep({
   const validate = () => {
     const e: Partial<Record<keyof LeadForm, string>> = {};
     (Object.keys(VALIDATORS) as ValidatableField[]).forEach(key => {
+      // Skip validation for locked fields — they're guaranteed valid from the user profile
+      if (isLocked(key as any)) return;
       const err = VALIDATORS[key](form[key] as string);
       if (err) e[key] = err;
     });
@@ -396,6 +428,8 @@ function LeadFormStep({
   const maxDateStr = maxDate.toISOString().split('T')[0];
   const phoneDigits = form.phone.replace(/\D/g, '').length;
 
+  const hasLockedFields = lockedFields && (lockedFields.name || lockedFields.phone || lockedFields.email);
+
   return (
     <>
       <div style={s.header}>
@@ -403,7 +437,6 @@ function LeadFormStep({
           <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Your Contact Details</h2>
           {canGoBack && <StepIndicator step="lead-form" />}
         </div>
-        {/* ── FIX: X button now calls onClose, not onBack ── */}
         <button style={s.closeBtn} onClick={onClose}><X size={18} color="#6b7280" /></button>
       </div>
 
@@ -434,35 +467,93 @@ function LeadFormStep({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+        {/* Logged-in banner */}
+        {hasLockedFields && <LoggedInBanner />}
+
+        {/* Name */}
         <FieldWrapper error={errors.name}>
-          <label style={s.label}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
+          <label style={s.label}>
+            Full Name <span style={{ color: '#ef4444' }}>*</span>
+            {isLocked('name') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
+          </label>
           <div style={{ position: 'relative' }}>
             <User size={14} color={errors.name ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={{ ...s.input(!!errors.name), paddingLeft: 34 }} placeholder="Juan dela Cruz" value={form.name} onChange={e => update('name', e.target.value)} onBlur={() => touch('name')} maxLength={60} autoComplete="name" />
-            {form.name.trim().length > 0 && !errors.name && touched.name && <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />}
+            <input
+              style={{ ...(isLocked('name') ? s.readonlyInput : s.input(!!errors.name)), paddingLeft: 34 }}
+              placeholder="Juan dela Cruz"
+              value={form.name}
+              onChange={e => update('name', e.target.value)}
+              onBlur={() => touch('name')}
+              readOnly={isLocked('name')}
+              maxLength={60}
+              autoComplete="name"
+            />
+            {(isLocked('name') || (form.name.trim().length > 0 && !errors.name && touched.name)) && (
+              <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />
+            )}
           </div>
-          {!errors.name && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>First and last name required</p>}
+          {!errors.name && !isLocked('name') && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>First and last name required</p>}
         </FieldWrapper>
 
+        {/* Phone */}
         <FieldWrapper error={errors.phone}>
-          <label style={s.label}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+          <label style={s.label}>
+            Phone Number <span style={{ color: '#ef4444' }}>*</span>
+            {isLocked('phone') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
+          </label>
           <div style={{ position: 'relative' }}>
             <Phone size={14} color={errors.phone ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={{ ...s.input(!!errors.phone), paddingLeft: 34, paddingRight: 52 }} placeholder="09171234567" value={form.phone} onChange={e => update('phone', e.target.value)} onBlur={() => touch('phone')} type="tel" maxLength={15} autoComplete="tel" inputMode="numeric" />
-            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, fontWeight: 600, color: phoneDigits === 11 ? '#22c55e' : phoneDigits > 11 ? '#ef4444' : '#9ca3af' }}>{phoneDigits}/11</span>
+            <input
+              style={{ ...(isLocked('phone') ? s.readonlyInput : s.input(!!errors.phone)), paddingLeft: 34, paddingRight: 52 }}
+              placeholder="09171234567"
+              value={form.phone}
+              onChange={e => update('phone', e.target.value)}
+              onBlur={() => touch('phone')}
+              readOnly={isLocked('phone')}
+              type="tel"
+              maxLength={15}
+              autoComplete="tel"
+              inputMode="numeric"
+            />
+            <span style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 11, fontWeight: 600,
+              color: isLocked('phone') ? '#22c55e' : phoneDigits === 11 ? '#22c55e' : phoneDigits > 11 ? '#ef4444' : '#9ca3af',
+            }}>
+              {isLocked('phone') ? <CheckCircle2 size={14} color="#22c55e" /> : `${phoneDigits}/11`}
+            </span>
           </div>
-          {!errors.phone && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>PH mobile number — 11 digits (e.g. 09171234567)</p>}
+          {!errors.phone && !isLocked('phone') && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>PH mobile number — 11 digits (e.g. 09171234567)</p>}
         </FieldWrapper>
 
+        {/* Email */}
         <FieldWrapper error={errors.email}>
-          <label style={s.label}>Email Address <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
+          <label style={s.label}>
+            Email Address{' '}
+            {isLocked('email')
+              ? <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />
+              : <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span>}
+          </label>
           <div style={{ position: 'relative' }}>
             <Mail size={14} color={errors.email ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={{ ...s.input(!!errors.email), paddingLeft: 34 }} placeholder="juan@email.com" value={form.email} onChange={e => update('email', e.target.value)} onBlur={() => touch('email')} type="email" maxLength={100} autoComplete="email" />
-            {form.email.trim().length > 0 && !errors.email && touched.email && <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />}
+            <input
+              style={{ ...(isLocked('email') ? s.readonlyInput : s.input(!!errors.email)), paddingLeft: 34 }}
+              placeholder="juan@email.com"
+              value={form.email}
+              onChange={e => update('email', e.target.value)}
+              onBlur={() => touch('email')}
+              readOnly={isLocked('email')}
+              type="email"
+              maxLength={100}
+              autoComplete="email"
+            />
+            {(isLocked('email') || (form.email.trim().length > 0 && !errors.email && touched.email)) && (
+              <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />
+            )}
           </div>
         </FieldWrapper>
 
+        {/* Preferred Contact */}
         <div style={s.fieldGroup}>
           <label style={s.label}>Preferred Contact Method</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -475,12 +566,14 @@ function LeadFormStep({
           </div>
         </div>
 
+        {/* Viewing Date */}
         <FieldWrapper error={errors.viewingDate}>
           <label style={s.label}><Calendar size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Preferred Viewing Date <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
           <input style={s.input(!!errors.viewingDate)} type="date" min={minDate} max={maxDateStr} value={form.viewingDate} onChange={e => update('viewingDate', e.target.value)} onBlur={() => touch('viewingDate')} />
           {!errors.viewingDate && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Available slots: tomorrow up to 6 months ahead</p>}
         </FieldWrapper>
 
+        {/* Message */}
         <FieldWrapper error={errors.message}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <label style={{ ...s.label, marginBottom: 0 }}><MessageSquare size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Message to Agent <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
@@ -493,7 +586,6 @@ function LeadFormStep({
       </div>
 
       <div style={{ padding: '18px 28px', borderTop: '1px solid #f0f0f0', flexShrink: 0, display: 'flex', gap: 10 }}>
-        {/* ── FIX: only show ← Back when coming from agent picker ── */}
         {canGoBack && (
           <button style={s.secondaryBtn} onClick={onBack} disabled={submitting}>← Back</button>
         )}
@@ -527,13 +619,27 @@ function ContactModal({ onClose, property, listedAgent }: {
   property: PropertySnapshot;
   listedAgent?: Agent | null;
 }) {
-  // ── FIX: if listedAgent provided, skip agent-picker step entirely ──
+  const { user } = useAuth();
+
   const [step,          setStep]          = useState<ModalStep>(listedAgent ? 'lead-form' : 'select-agent');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(listedAgent ?? null);
   const [submitError,   setSubmitError]   = useState<string | null>(null);
+
+  // Pre-fill from logged-in user
   const [form, setForm] = useState<LeadForm>({
-    name: '', phone: '', email: '', message: '', preferredContact: 'sms', viewingDate: '',
+    name:             user?.name  ?? '',
+    phone:            user?.phone ?? '',
+    email:            user?.email ?? '',
+    message:          '',
+    preferredContact: 'sms',
+    viewingDate:      '',
   });
+
+  const lockedFields = {
+    name:  !!user?.name,
+    phone: !!user?.phone,
+    email: !!user?.email,
+  };
 
   const handleSubmit = async () => {
     setStep('submitting');
@@ -595,10 +701,11 @@ function ContactModal({ onClose, property, listedAgent }: {
             setForm={setForm}
             onSubmit={handleSubmit}
             onBack={() => setStep('select-agent')}
-            onClose={onClose}                  // ── FIX: pass onClose so X closes modal
+            onClose={onClose}
             submitting={step === 'submitting'}
             property={property}
-            canGoBack={!listedAgent}           // ── FIX: hide ← Back when agent is pre-set
+            canGoBack={!listedAgent}
+            lockedFields={lockedFields}
           />
         )}
         {step === 'success' && selectedAgent && (
@@ -654,19 +761,38 @@ function getAvailableDates() {
 }
 
 function TourModal({ onClose, property }: { onClose: () => void; property: PropertySnapshot }) {
+  const { user } = useAuth();
+
   const [step,        setStep]        = useState<TourStep>('pick-slot');
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Pre-fill from logged-in user
   const [form, setForm] = useState<TourForm>({
-    name: '', phone: '', email: '', tourType: 'in-person', date: '', time: '', preferredContact: 'sms',
+    name:             user?.name  ?? '',
+    phone:            user?.phone ?? '',
+    email:            user?.email ?? '',
+    tourType:         'in-person',
+    date:             '',
+    time:             '',
+    preferredContact: 'sms',
   });
+
   const [errors,  setErrors]  = useState<Partial<Record<'name' | 'phone' | 'email', string>>>({});
   const [touched, setTouched] = useState<Partial<Record<'name' | 'phone' | 'email', boolean>>>({});
+
+  const isLocked = (field: 'name' | 'phone' | 'email') => {
+    if (field === 'name')  return !!user?.name;
+    if (field === 'phone') return !!user?.phone;
+    if (field === 'email') return !!user?.email;
+    return false;
+  };
 
   const dates        = getAvailableDates();
   const phoneDigits  = form.phone.replace(/\D/g, '').length;
   const canProceedSlot = form.date && form.time;
 
   const updateForm = (key: keyof TourForm, val: string) => {
+    if ((key === 'name' || key === 'phone' || key === 'email') && isLocked(key)) return;
     if (key === 'phone') val = val.replace(/[^\d+\s\-()]/g, '');
     if (key === 'name')  val = val.replace(/[0-9]/g, '');
     const updated = { ...form, [key]: val };
@@ -682,6 +808,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
   };
 
   const touch = (key: 'name' | 'phone' | 'email') => {
+    if (isLocked(key)) return;
     setTouched(prev => ({ ...prev, [key]: true }));
     const err = TOUR_VALIDATORS[key](form[key], form);
     setErrors(prev => ({ ...prev, [key]: err ?? undefined }));
@@ -689,8 +816,13 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
 
   const validateDetails = () => {
     const e: Partial<Record<'name' | 'phone' | 'email', string>> = {};
-    (['name', 'phone', 'email'] as const).forEach(k => { const err = TOUR_VALIDATORS[k](form[k], form); if (err) e[k] = err; });
-    setErrors(e); setTouched({ name: true, phone: true, email: true });
+    (['name', 'phone', 'email'] as const).forEach(k => {
+      if (isLocked(k)) return; // skip locked fields
+      const err = TOUR_VALIDATORS[k](form[k], form);
+      if (err) e[k] = err;
+    });
+    setErrors(e);
+    setTouched({ name: true, phone: true, email: true });
     return Object.keys(e).length === 0;
   };
 
@@ -748,6 +880,8 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
     const fmt   = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Property Tour: ${property.title}`)}&dates=${fmt(start)}/${fmt(end)}&details=${encodeURIComponent(`${form.tourType === 'video' ? 'Video' : 'In-Person'} tour of ${property.title} at ${property.address}, ${property.city}`)}&location=${encodeURIComponent(`${property.address}, ${property.city}`)}`;
   })() : '#';
+
+  const hasLockedFields = isLocked('name') || isLocked('phone') || isLocked('email');
 
   return (
     <div style={s.overlay} onClick={onClose}>
@@ -860,24 +994,64 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+              {/* Logged-in banner */}
+              {hasLockedFields && <LoggedInBanner />}
+
+              {/* Name */}
               <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
+                <label style={s.label}>
+                  Full Name <span style={{ color: '#ef4444' }}>*</span>
+                  {isLocked('name') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
+                </label>
                 <div style={{ position: 'relative' }}>
                   <User size={14} color={errors.name ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input style={{ ...s.input(!!errors.name), paddingLeft: 34 }} placeholder="Juan dela Cruz" value={form.name} onChange={e => updateForm('name', e.target.value)} onBlur={() => touch('name')} maxLength={60} />
-                  {form.name.trim().length > 1 && !errors.name && touched.name && <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />}
+                  <input
+                    style={{ ...(isLocked('name') ? s.readonlyInput : s.input(!!errors.name)), paddingLeft: 34 }}
+                    placeholder="Juan dela Cruz"
+                    value={form.name}
+                    onChange={e => updateForm('name', e.target.value)}
+                    onBlur={() => touch('name')}
+                    readOnly={isLocked('name')}
+                    maxLength={60}
+                  />
+                  {(isLocked('name') || (form.name.trim().length > 1 && !errors.name && touched.name)) && (
+                    <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />
+                  )}
                 </div>
                 {errors.name && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>⚠ {errors.name}</p>}
               </div>
+
+              {/* Phone */}
               <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+                <label style={s.label}>
+                  Phone Number <span style={{ color: '#ef4444' }}>*</span>
+                  {isLocked('phone') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
+                </label>
                 <div style={{ position: 'relative' }}>
                   <Phone size={14} color={errors.phone ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input style={{ ...s.input(!!errors.phone), paddingLeft: 34, paddingRight: 52 }} placeholder="09171234567" value={form.phone} onChange={e => updateForm('phone', e.target.value)} onBlur={() => touch('phone')} type="tel" maxLength={15} inputMode="numeric" />
-                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, fontWeight: 600, color: phoneDigits === 11 ? '#22c55e' : phoneDigits > 11 ? '#ef4444' : '#9ca3af' }}>{phoneDigits}/11</span>
+                  <input
+                    style={{ ...(isLocked('phone') ? s.readonlyInput : s.input(!!errors.phone)), paddingLeft: 34, paddingRight: 52 }}
+                    placeholder="09171234567"
+                    value={form.phone}
+                    onChange={e => updateForm('phone', e.target.value)}
+                    onBlur={() => touch('phone')}
+                    readOnly={isLocked('phone')}
+                    type="tel"
+                    maxLength={15}
+                    inputMode="numeric"
+                  />
+                  <span style={{
+                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                    fontSize: 11, fontWeight: 600,
+                    color: isLocked('phone') ? '#22c55e' : phoneDigits === 11 ? '#22c55e' : phoneDigits > 11 ? '#ef4444' : '#9ca3af',
+                  }}>
+                    {isLocked('phone') ? <CheckCircle2 size={14} color="#22c55e" /> : `${phoneDigits}/11`}
+                  </span>
                 </div>
                 {errors.phone && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>⚠ {errors.phone}</p>}
               </div>
+
+              {/* Confirm Tour Via */}
               <div style={{ marginBottom: 16 }}>
                 <label style={s.label}>Confirm Tour Via</label>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -887,16 +1061,34 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                   })}
                 </div>
               </div>
+
+              {/* Email — only shown when preferredContact === email */}
               {form.preferredContact === 'email' && (
                 <div style={{ marginBottom: 16 }}>
-                  <label style={s.label}>Email Address <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={s.label}>
+                    Email Address <span style={{ color: '#ef4444' }}>*</span>
+                    {isLocked('email') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <Mail size={14} color={errors.email ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                    <input style={{ ...s.input(!!errors.email), paddingLeft: 34 }} placeholder="juan@email.com" value={form.email} onChange={e => updateForm('email', e.target.value)} onBlur={() => touch('email')} type="email" maxLength={100} />
+                    <input
+                      style={{ ...(isLocked('email') ? s.readonlyInput : s.input(!!errors.email)), paddingLeft: 34 }}
+                      placeholder="juan@email.com"
+                      value={form.email}
+                      onChange={e => updateForm('email', e.target.value)}
+                      onBlur={() => touch('email')}
+                      readOnly={isLocked('email')}
+                      type="email"
+                      maxLength={100}
+                    />
+                    {(isLocked('email') || (form.email.trim().length > 0 && !errors.email && touched.email)) && (
+                      <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />
+                    )}
                   </div>
                   {errors.email && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>⚠ {errors.email}</p>}
                 </div>
               )}
+
               <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.6 }}>🔒 Your details are only used to confirm this tour booking.</p>
             </div>
 
