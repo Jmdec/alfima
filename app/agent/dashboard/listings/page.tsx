@@ -8,10 +8,8 @@ import {
   Home, Building2, MapPin, Bed, Bath, Ruler,
   ChevronLeft, ChevronRight, Loader2, RefreshCw, Search,
   Plus, Edit2, Trash2, Eye, XCircle, TriangleAlert,
-  CheckCircle2, Tag,
 } from 'lucide-react';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 interface Property {
   id: number;
   title: string;
@@ -37,7 +35,6 @@ interface PaginatedResponse {
   total: number;
 }
 
-// ── Config ────────────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   active:   { label: 'Active',   dot: 'bg-emerald-400', text: 'text-emerald-400', border: 'border-emerald-500/40', bg: 'bg-emerald-500/10' },
   sold:     { label: 'Sold',     dot: 'bg-blue-400',    text: 'text-blue-400',    border: 'border-blue-500/40',    bg: 'bg-blue-500/10'    },
@@ -45,15 +42,12 @@ const STATUS_CONFIG = {
   inactive: { label: 'Inactive', dot: 'bg-white/30',    text: 'text-white/40',    border: 'border-white/10',       bg: 'bg-white/5'        },
 } as const;
 
-
-
 function formatPrice(p: Property): string {
   if (p.listing_type === 'rent')
     return p.price_per_month ? `₱${Number(p.price_per_month).toLocaleString('en-PH')}/mo` : '—';
   return p.price ? `₱${Number(p.price).toLocaleString('en-PH')}` : '—';
 }
 
-// ── Confirm Dialog ────────────────────────────────────────────────────────────
 function ConfirmDialog({ onConfirm, onCancel, loading }: {
   onConfirm: () => void; onCancel: () => void; loading?: boolean;
 }) {
@@ -90,7 +84,6 @@ function ConfirmDialog({ onConfirm, onCancel, loading }: {
   );
 }
 
-// ── Property Card ─────────────────────────────────────────────────────────────
 function PropertyCard({ property, onDelete, deleting }: {
   property: Property; onDelete: (id: number) => void; deleting: boolean;
 }) {
@@ -100,37 +93,24 @@ function PropertyCard({ property, onDelete, deleting }: {
   return (
     <div className="group glass rounded-2xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-300 hover:shadow-xl hover:shadow-black/20">
       <div className="flex">
-
-        {/* Thumbnail */}
         <div className="relative flex-shrink-0 w-36 sm:w-44">
           {property.thumbnail
-            ? <img
-                src={property.thumbnail ?? ""}
-                alt={property.title}
-                className="w-full h-full object-cover"
-                style={{ minHeight: 140 }}
-              />
+            ? <img src={property.thumbnail} alt={property.title} className="w-full h-full object-cover" style={{ minHeight: 140 }} />
             : <div className="w-full flex items-center justify-center bg-white/5" style={{ minHeight: 140 }}>
                 <Home className="w-8 h-8 text-white/20" />
               </div>
           }
-          {/* Listing type pill */}
           <div className={`absolute top-3 left-3 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider ${
             isForRent ? 'bg-violet-600/90 text-white' : 'bg-red-600/90 text-white'
           }`}>
             {isForRent ? 'For Rent' : 'For Sale'}
           </div>
-          {/* Dark gradient overlay on bottom */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/20 group-hover:to-black/10 transition-all" />
         </div>
 
-        {/* Content */}
         <div className="flex-1 p-5 min-w-0">
-
-          {/* Top row */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="min-w-0 flex-1">
-              {/* Status + type */}
               <div className="flex items-center gap-2 flex-wrap mb-2">
                 <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
@@ -140,22 +120,17 @@ function PropertyCard({ property, onDelete, deleting }: {
                   {property.property_type}
                 </span>
               </div>
-              <h3 className="text-white font-bold text-base truncate leading-tight">
-                {property.title}
-              </h3>
+              <h3 className="text-white font-bold text-base truncate leading-tight">{property.title}</h3>
               <p className="text-white/40 text-xs mt-1 flex items-center gap-1">
                 <MapPin className="w-3 h-3 flex-shrink-0" />
                 {property.address}, {property.city}
               </p>
             </div>
-
-            {/* Price */}
             <div className="flex-shrink-0 text-right">
               <p className="text-red-400 font-black text-lg leading-tight">{formatPrice(property)}</p>
             </div>
           </div>
 
-          {/* Specs */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
             {property.bedrooms != null && (
               <span className="inline-flex items-center gap-1.5 text-xs text-white/50 bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg">
@@ -177,7 +152,6 @@ function PropertyCard({ property, onDelete, deleting }: {
             </span>
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-2 flex-wrap">
             <Link href={`/properties/${property.id}`}>
               <button className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white hover:border-white/25 hover:bg-white/10 transition-all">
@@ -189,9 +163,7 @@ function PropertyCard({ property, onDelete, deleting }: {
                 <Edit2 className="w-3.5 h-3.5" /> Edit
               </button>
             </Link>
-            <button
-              onClick={() => onDelete(property.id)}
-              disabled={deleting}
+            <button onClick={() => onDelete(property.id)} disabled={deleting}
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
               {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               Delete
@@ -203,7 +175,6 @@ function PropertyCard({ property, onDelete, deleting }: {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AgentListingsPage() {
   const { user, initialized } = useAuth();
   const router = useRouter();
@@ -223,19 +194,23 @@ export default function AgentListingsPage() {
   }, [user, initialized, router]);
 
   const fetchListings = useCallback(async (showRefresh = false) => {
+    if (!user) return;
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), per_page: '10' });
-      if (search)       params.set('search',       search);
-      if (statusFilter) params.set('status',        statusFilter);
-      if (typeFilter)   params.set('property_type', typeFilter);
+      // ✅ Filter by current agent's ID
+      params.set('agent_id', String(user.id));
+      if (search)       params.set('search',        search);
+      if (statusFilter) params.set('status',         statusFilter);
+      if (typeFilter)   params.set('property_type',  typeFilter);
+
       const res  = await fetch(`/api/properties?${params}`, { credentials: 'include' });
       const json = await res.json();
       setData(json);
     } catch { /* keep existing */ }
     finally { setLoading(false); setRefreshing(false); }
-  }, [page, search, statusFilter, typeFilter]);
+  }, [page, search, statusFilter, typeFilter, user]);
 
   useEffect(() => {
     if (initialized && user) fetchListings();
@@ -256,7 +231,6 @@ export default function AgentListingsPage() {
   if (!initialized || !user) return null;
 
   const propertyTypes = ['house', 'condo', 'townhouse', 'lot', 'commercial', 'warehouse'];
-
   const tabCounts = (Object.keys(STATUS_CONFIG) as Property['status'][]).reduce<Record<string, number>>(
     (acc, s) => ({ ...acc, [s]: data?.data.filter(p => p.status === s).length ?? 0 }),
     {}
@@ -265,27 +239,21 @@ export default function AgentListingsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-      {/* ── Header ── */}
       <div className="flex items-start justify-between flex-wrap gap-4 mb-10">
         <div>
           <div className="inline-flex items-center gap-2 bg-red-600/20 border border-red-500/30 rounded-full px-3 py-1 mb-3">
             <Building2 className="w-3.5 h-3.5 text-red-400" />
             <span className="text-red-300 text-xs font-semibold tracking-widest uppercase">My Properties</span>
           </div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">
-            My Listings
-          </h1>
+          <h1 className="text-4xl font-bold text-white tracking-tight">My Listings</h1>
           <p className="text-white/40 text-sm mt-1">
             {loading ? 'Loading…' : `${data?.total ?? 0} propert${(data?.total ?? 0) !== 1 ? 'ies' : 'y'} listed`}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => fetchListings(true)}
-            disabled={refreshing}
+          <button onClick={() => fetchListings(true)} disabled={refreshing}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white/60 hover:text-white hover:border-white/20 text-sm font-semibold transition-all">
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
           </button>
           <Link href="/list-property">
             <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white text-sm font-bold transition-all shadow-lg shadow-red-600/30 hover:scale-105">
@@ -295,67 +263,45 @@ export default function AgentListingsPage() {
         </div>
       </div>
 
-      {/* ── Filter panel ── */}
       <div className="glass rounded-2xl border border-white/10 p-5 mb-6">
-
-        {/* Search */}
         <div className="relative mb-4">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-          <input
-            type="text"
-            placeholder="Search by title, address, or city…"
-            value={search}
+          <input type="text" placeholder="Search by title, address, or city…" value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 text-sm focus:outline-none focus:border-red-500/50 focus:bg-white/8 transition-all"
+            className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 text-sm focus:outline-none focus:border-red-500/50 transition-all"
           />
         </div>
-
-        {/* Status tabs */}
         <div className="flex items-center gap-2 flex-wrap mb-3">
-          <button
-            onClick={() => { setStatusFilter(''); setPage(1); }}
+          <button onClick={() => { setStatusFilter(''); setPage(1); }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${
-              !statusFilter
-                ? 'bg-white/10 border-white/20 text-white'
-                : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+              !statusFilter ? 'bg-white/10 border-white/20 text-white' : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
             }`}>
             All {data ? `(${data.total})` : ''}
           </button>
           {(Object.entries(STATUS_CONFIG) as [Property['status'], typeof STATUS_CONFIG[Property['status']]][]).map(([key, cfg]) => (
-            <button
-              key={key}
-              onClick={() => { setStatusFilter(key); setPage(1); }}
+            <button key={key} onClick={() => { setStatusFilter(key); setPage(1); }}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border ${
-                statusFilter === key
-                  ? `${cfg.bg} ${cfg.border} ${cfg.text}`
-                  : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+                statusFilter === key ? `${cfg.bg} ${cfg.border} ${cfg.text}` : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
               }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
               {cfg.label} ({tabCounts[key] ?? 0})
             </button>
           ))}
         </div>
-
-        {/* Property type chips */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-semibold text-white/25 uppercase tracking-widest">Type:</span>
-          <button
-            onClick={() => { setTypeFilter(''); setPage(1); }}
+          <button onClick={() => { setTypeFilter(''); setPage(1); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
               !typeFilter ? 'bg-white/10 border-white/20 text-white' : 'border-white/10 text-white/40 hover:text-white/60'
             }`}>All</button>
           {propertyTypes.map(t => (
-            <button key={t}
-              onClick={() => { setTypeFilter(t); setPage(1); }}
+            <button key={t} onClick={() => { setTypeFilter(t); setPage(1); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all border ${
-                typeFilter === t
-                  ? 'bg-red-600/20 border-red-500/40 text-red-400'
-                  : 'border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
+                typeFilter === t ? 'bg-red-600/20 border-red-500/40 text-red-400' : 'border-white/10 text-white/40 hover:text-white/60 hover:border-white/20'
               }`}>{t}</button>
           ))}
           {(search || statusFilter || typeFilter) && (
-            <button
-              onClick={() => { setSearch(''); setStatusFilter(''); setTypeFilter(''); setPage(1); }}
+            <button onClick={() => { setSearch(''); setStatusFilter(''); setTypeFilter(''); setPage(1); }}
               className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all">
               <XCircle className="w-3.5 h-3.5" /> Clear
             </button>
@@ -363,7 +309,6 @@ export default function AgentListingsPage() {
         </div>
       </div>
 
-      {/* ── Content ── */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-14 h-14 rounded-2xl glass border border-white/10 flex items-center justify-center">
@@ -400,26 +345,19 @@ export default function AgentListingsPage() {
       ) : (
         <div className="space-y-4">
           {(data?.data ?? []).map(property => (
-            <PropertyCard
-              key={property.id}
-              property={property}
-              onDelete={(id) => setConfirmId(id)}
-              deleting={deletingId === property.id}
-            />
+            <PropertyCard key={property.id} property={property}
+              onDelete={(id) => setConfirmId(id)} deleting={deletingId === property.id} />
           ))}
         </div>
       )}
 
-      {/* ── Pagination ── */}
       {data && data.last_page > 1 && (
         <div className="flex items-center justify-between mt-10 pt-6 border-t border-white/10">
           <p className="text-white/30 text-sm">
             Showing <span className="text-white font-semibold">{((page - 1) * data.per_page) + 1}–{Math.min(page * data.per_page, data.total)}</span> of <span className="text-white font-semibold">{data.total}</span>
           </p>
           <div className="flex gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white/50 hover:text-white hover:border-white/20 text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed">
               <ChevronLeft className="w-4 h-4" /> Prev
             </button>
@@ -428,16 +366,10 @@ export default function AgentListingsPage() {
               .map(n => (
                 <button key={n} onClick={() => setPage(n)}
                   className={`w-10 h-10 rounded-xl border text-sm font-bold transition-all ${
-                    n === page
-                      ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/30'
-                      : 'border-white/10 bg-white/5 text-white/50 hover:text-white hover:border-white/20'
-                  }`}>
-                  {n}
-                </button>
+                    n === page ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/30' : 'border-white/10 bg-white/5 text-white/50 hover:text-white hover:border-white/20'
+                  }`}>{n}</button>
               ))}
-            <button
-              onClick={() => setPage(p => Math.min(data.last_page, p + 1))}
-              disabled={page === data.last_page}
+            <button onClick={() => setPage(p => Math.min(data.last_page, p + 1))} disabled={page === data.last_page}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white/50 hover:text-white hover:border-white/20 text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed">
               Next <ChevronRight className="w-4 h-4" />
             </button>
@@ -445,7 +377,6 @@ export default function AgentListingsPage() {
         </div>
       )}
 
-      {/* ── Delete confirm ── */}
       {confirmId !== null && (
         <ConfirmDialog
           loading={deletingId === confirmId}
