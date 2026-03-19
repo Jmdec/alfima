@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+
+// Using require avoids the need for @types/nodemailer as a prod dependency.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const nodemailer = require('nodemailer') as typeof import('nodemailer');
 
 export async function POST(req: NextRequest) {
   try {
@@ -87,7 +90,6 @@ export async function POST(req: NextRequest) {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
     if (!apiUrl) {
-      // Email sent; no DB configured — still a success
       return NextResponse.json(
         { success: true, message: 'Email sent. No database configured.' },
         { status: 200 }
@@ -106,7 +108,6 @@ export async function POST(req: NextRequest) {
     if (!dbRes.ok) {
       const dbErr = await dbRes.json().catch(() => ({}));
       console.error('[contact/route] DB save failed:', dbErr);
-      // Email already delivered — return partial success
       return NextResponse.json(
         {
           success: true,
