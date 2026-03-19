@@ -403,7 +403,6 @@ function LeadFormStep({
   const validate = () => {
     const e: Partial<Record<keyof LeadForm, string>> = {};
     (Object.keys(VALIDATORS) as ValidatableField[]).forEach(key => {
-      // Skip validation for locked fields — they're guaranteed valid from the user profile
       if (isLocked(key as any)) return;
       const err = VALIDATORS[key](form[key] as string);
       if (err) e[key] = err;
@@ -467,7 +466,6 @@ function LeadFormStep({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
-        {/* Logged-in banner */}
         {hasLockedFields && <LoggedInBanner />}
 
         {/* Name */}
@@ -625,7 +623,6 @@ function ContactModal({ onClose, property, listedAgent }: {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(listedAgent ?? null);
   const [submitError,   setSubmitError]   = useState<string | null>(null);
 
-  // Pre-fill from logged-in user
   const [form, setForm] = useState<LeadForm>({
     name:             user?.name  ?? '',
     phone:            user?.phone ?? '',
@@ -766,7 +763,6 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
   const [step,        setStep]        = useState<TourStep>('pick-slot');
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Pre-fill from logged-in user
   const [form, setForm] = useState<TourForm>({
     name:             user?.name  ?? '',
     phone:            user?.phone ?? '',
@@ -817,7 +813,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
   const validateDetails = () => {
     const e: Partial<Record<'name' | 'phone' | 'email', string>> = {};
     (['name', 'phone', 'email'] as const).forEach(k => {
-      if (isLocked(k)) return; // skip locked fields
+      if (isLocked(k)) return;
       const err = TOUR_VALIDATORS[k](form[k], form);
       if (err) e[k] = err;
     });
@@ -994,7 +990,6 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
-              {/* Logged-in banner */}
               {hasLockedFields && <LoggedInBanner />}
 
               {/* Name */}
@@ -1130,6 +1125,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   const [lightboxOpen,      setLightboxOpen]      = useState(false);
   const [showContactModal,  setShowContactModal]  = useState(false);
   const [showTourModal,     setShowTourModal]     = useState(false);
+  const [shareCopied,       setShareCopied]       = useState(false);
   const { isFavorited, toggleFavorite } = useFavorites();
 
   useEffect(() => {
@@ -1186,6 +1182,22 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   const propertyId  = Number(property.id);
   const favorited   = isFavorited(propertyId);
   const areaDisplay = (property as any).area ? String((property as any).area) : '—';
+
+  // ── Share handler ──────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    const shareData = {
+      title: property.title,
+      text:  `${property.title} — ${priceDisplay}`,
+      url:   window.location.href,
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch { /* user cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
 
   const propertySnapshot: PropertySnapshot = {
     id:        propertyId,
@@ -1337,19 +1349,38 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               <p className="text-muted-foreground text-sm mb-2">Price</p>
               <h3 className="text-4xl font-bold text-primary mb-6">{priceDisplay}</h3>
               <div className="space-y-3 mb-6">
-                <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="lg" onClick={() => setShowContactModal(true)}>
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                  size="lg"
+                  onClick={() => setShowContactModal(true)}
+                >
                   <Phone className="w-4 h-4 mr-2" />Contact Agent
                 </Button>
-                <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" size="lg" onClick={() => setShowTourModal(true)}>
+                <Button
+                  className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+                  size="lg"
+                  onClick={() => setShowTourModal(true)}
+                >
                   Schedule Tour
                 </Button>
-                <Button onClick={() => toggleFavorite(propertyId)} variant="outline" className="w-full border-border hover:bg-muted" size="lg">
+                <Button
+                  onClick={() => toggleFavorite(propertyId)}
+                  variant="outline"
+                  className="w-full border-border hover:bg-muted"
+                  size="lg"
+                >
                   <Heart className={`w-4 h-4 mr-2 ${favorited ? 'fill-accent stroke-accent' : ''}`} />
                   {favorited ? 'Saved' : 'Save'}
                 </Button>
               </div>
-              <button className="w-full flex items-center justify-center gap-2 p-3 hover:bg-muted rounded-lg transition">
-                <Share2 className="w-4 h-4" />Share
+
+              {/* ── FIXED: Share button with working handler ── */}
+              <button
+                className="w-full flex items-center justify-center gap-2 p-3 hover:bg-muted rounded-lg transition text-sm font-medium"
+                onClick={handleShare}
+              >
+                <Share2 className="w-4 h-4" />
+                {shareCopied ? '✓ Link Copied!' : 'Share'}
               </button>
             </div>
 
@@ -1357,18 +1388,43 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               <div className="glass rounded-xl p-8">
                 <h3 className="font-bold text-lg mb-4">Listed by</h3>
                 <div className="flex items-start gap-4">
-                  <img src={(property as any).agent.avatar ?? 'https://via.placeholder.com/64'} alt={(property as any).agent.name} className="w-16 h-16 rounded-full object-cover" />
+                  <img
+                    src={(property as any).agent.avatar ?? 'https://via.placeholder.com/64'}
+                    alt={(property as any).agent.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
                   <div className="flex-1">
                     <h4 className="font-bold text-foreground">{(property as any).agent.name}</h4>
-                    {(property as any).agent.specialization && <p className="text-xs text-muted-foreground mb-1">{(property as any).agent.specialization}</p>}
-                    {(property as any).agent.experience_years && <p className="text-xs text-muted-foreground mb-4">{(property as any).agent.experience_years} years experience</p>}
+                    {(property as any).agent.specialization && (
+                      <p className="text-xs text-muted-foreground mb-1">{(property as any).agent.specialization}</p>
+                    )}
+                    {(property as any).agent.experience_years && (
+                      <p className="text-xs text-muted-foreground mb-4">{(property as any).agent.experience_years} years experience</p>
+                    )}
                     <div className="space-y-2">
-                      <Button variant="outline" className="w-full border-border hover:bg-muted text-sm">
-                        <Phone className="w-4 h-4 mr-1" />{(property as any).agent.phone}
-                      </Button>
-                      <Button variant="outline" className="w-full border-border hover:bg-muted text-sm" onClick={() => setShowContactModal(true)}>
+
+                      {/* ── FIXED: Phone button — clickable tel: link, centered ── */}
+                      {(property as any).agent.phone && (
+                        <a href={`tel:${(property as any).agent.phone}`} className="block w-full">
+                          <Button
+                            variant="outline"
+                            className="w-full border-border hover:bg-muted text-sm justify-center"
+                          >
+                            <Phone className="w-4 h-4 mr-1" />
+                            {(property as any).agent.phone}
+                          </Button>
+                        </a>
+                      )}
+
+                      {/* ── Message button ── */}
+                      <Button
+                        variant="outline"
+                        className="w-full border-border hover:bg-muted text-sm justify-center"
+                        onClick={() => setShowContactModal(true)}
+                      >
                         <Mail className="w-4 h-4 mr-1" />Message
                       </Button>
+
                     </div>
                   </div>
                 </div>
