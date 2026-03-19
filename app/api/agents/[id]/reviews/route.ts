@@ -4,12 +4,12 @@ const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ agentId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { agentId } = await params;
+  const { id } = await params;
   const { searchParams } = new URL(request.url);
 
-  const url = new URL(`/api/agents/${agentId}/reviews`, BACKEND);
+  const url = new URL(`/api/agents/${id}/reviews`, BACKEND);
   searchParams.forEach((value, key) => url.searchParams.set(key, value));
 
   try {
