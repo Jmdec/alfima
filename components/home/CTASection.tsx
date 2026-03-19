@@ -11,7 +11,7 @@ export function CTASection() {
             Start exploring your perfect property today or list your property to reach thousands of qualified buyers and renters.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <Link href="/buy">
+            <Link href="/properties">
               <Button className="bg-gradient-to-r from-lime-400 to-green-500 hover:from-lime-500 hover:to-green-600 text-green-950 font-bold text-lg px-8 py-6">
                 Browse Properties
               </Button>
