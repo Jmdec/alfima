@@ -13,9 +13,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'RealEstate - Buy, Rent & Sell Properties',
+  title: 'ALFIMA Realty Inc. - Buy, Rent & Sell Properties',
   description: 'Find your dream home or investment property. Connect with top real estate agents.',
-  generator: 'v0.app',
   icons: {
     icon: [
       { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },

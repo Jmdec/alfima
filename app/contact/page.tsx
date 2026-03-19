@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Mail, Phone, MapPin, Clock, CheckCircle2, Facebook, Instagram, Send, Shield, Star, Zap, Calendar } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock, CheckCircle2, Facebook, Instagram, Send, Shield, Star, Zap, Calendar, AlertCircle } from 'lucide-react';
 
 function useReveal(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null);
@@ -44,7 +44,6 @@ function Reveal({ children, delay = 0, dir = 'up' }: { children: React.ReactNode
   );
 }
 
-/* Animated stat card with colored icon box */
 function StatCard({ value, suffix, label, icon, delay = 0 }: {
   value: number; suffix: string; label: string; icon: React.ReactNode; delay?: number;
 }) {
@@ -68,7 +67,6 @@ function StatCard({ value, suffix, label, icon, delay = 0 }: {
   );
 }
 
-/* Static card — avoids "0 Free" counter glitch */
 function StatCardStatic({ headline, label, icon, delay = 0 }: {
   headline: string; label: string; icon: React.ReactNode; delay?: number;
 }) {
@@ -107,10 +105,13 @@ function FloatingParticles() {
   );
 }
 
+type FormState = { name: string; email: string; phone: string; subject: string; message: string };
+const EMPTY: FormState = { name: '', email: '', phone: '', subject: '', message: '' };
+
 export default function ContactPage() {
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<FormState>(EMPTY);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const [heroIn, setHeroIn] = useState(false);
 
   useEffect(() => { setTimeout(() => setHeroIn(true), 80); }, []);
@@ -119,20 +120,37 @@ export default function ContactPage() {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false); setSubmitted(true);
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-      setTimeout(() => setSubmitted(false), 6000);
-    }, 1200);
+    setStatus('loading');
+    setErrorMsg('');
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error ?? 'Something went wrong. Please try again.');
+      }
+
+      setStatus('success');
+      setFormData(EMPTY);
+      setTimeout(() => setStatus('idle'), 6000);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Unexpected error. Please try again.');
+      setStatus('error');
+    }
   };
 
   const trustBadges = [
-    { icon: <Shield className="w-3 h-3" />,       text: 'PRC Licensed' },
-    { icon: <Star   className="w-3 h-3" />,        text: '4.9★ Rated' },
-    { icon: <CheckCircle2 className="w-3 h-3" />,  text: 'HLURB Accredited' },
+    { icon: <Shield className="w-3 h-3" />,      text: 'PRC Licensed' },
+    { icon: <Star   className="w-3 h-3" />,       text: '4.9★ Rated' },
+    { icon: <CheckCircle2 className="w-3 h-3" />, text: 'HLURB Accredited' },
   ];
 
   const quickInfo = [
@@ -166,10 +184,8 @@ export default function ContactPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
-            {/* LEFT — text column */}
+            {/* LEFT */}
             <div>
-
-              {/* Eyebrow */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 0ms, transform .8s ease 0ms' }}>
                 <div className="inline-flex items-center gap-2 mb-5">
                   <div className="h-px w-10 bg-red-200/70" />
@@ -177,7 +193,6 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              {/* Headline */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 150ms, transform .8s ease 150ms' }}>
                 <h1 className="text-5xl sm:text-6xl font-black text-white leading-tight mb-5 drop-shadow-xl">
                   Get in<br />
@@ -186,14 +201,12 @@ export default function ContactPage() {
                 </h1>
               </div>
 
-              {/* Paragraph */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 250ms, transform .8s ease 250ms' }}>
                 <p className="text-white/80 text-lg leading-relaxed max-w-lg mb-5">
                   Have a question, want to schedule a viewing, or just want to say hello? Our team at Alfima Realty Inc. is ready to help.
                 </p>
               </div>
 
-              {/* ① Trust badge pills */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 330ms, transform .8s ease 330ms' }}>
                 <div className="flex flex-wrap gap-2 mb-5">
                   {trustBadges.map(({ icon, text }) => (
@@ -207,7 +220,6 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              {/* ④ Quick-info strip */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 410ms, transform .8s ease 410ms' }}>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-7">
                   {quickInfo.map(({ icon, text }, i) => (
@@ -220,7 +232,6 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              {/* Buttons */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 490ms, transform .8s ease 490ms' }}>
                 <div className="flex gap-4 flex-wrap">
                   <a href="#contact-form">
@@ -239,10 +250,8 @@ export default function ContactPage() {
 
             {/* RIGHT — stat cards */}
             <div className="grid grid-cols-2 gap-4">
-              {/* ② All cards now have colored icon boxes */}
               <StatCard       value={24}  suffix="h"   label="Response Time"       icon={<Clock        className="w-4 h-4" />} delay={200} />
               <StatCard       value={100} suffix="%"   label="Client Satisfaction" icon={<CheckCircle2 className="w-4 h-4" />} delay={350} />
-              {/* ③ Fixed "0 Free" bug — static card */}
               <StatCardStatic headline="Free"          label="Consultation"        icon={<Phone        className="w-4 h-4" />} delay={500} />
               <StatCard       value={7}   suffix="d"   label="Available Support"   icon={<Mail         className="w-4 h-4" />} delay={650} />
             </div>
@@ -250,7 +259,6 @@ export default function ContactPage() {
           </div>
         </div>
 
-        {/* Wave to white */}
         <div className="absolute bottom-0 left-0 w-full overflow-hidden">
           <svg viewBox="0 0 1440 70" preserveAspectRatio="none" className="w-full h-14" fill="white">
             <path d="M0,70 C480,0 960,70 1440,20 L1440,70 Z" />
@@ -258,7 +266,7 @@ export default function ContactPage() {
         </div>
       </section>
 
-      {/* ── CONTACT SECTION — light bg ── */}
+      {/* ── CONTACT SECTION ── */}
       <section id="contact-form" className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -266,7 +274,6 @@ export default function ContactPage() {
             {/* Sidebar */}
             <Reveal dir="left">
               <div className="space-y-4">
-
                 <div className="rounded-2xl p-6 border-2 border-red-100 shadow-sm"
                   style={{ background: 'linear-gradient(135deg,#fff5f5 0%,#fff 100%)' }}>
                   <div className="h-1 w-12 rounded-full mb-5" style={{ background: 'linear-gradient(90deg,#e74c3c,#ff8080)' }} />
@@ -343,7 +350,7 @@ export default function ContactPage() {
                   </div>
 
                   <div className="p-10 bg-white">
-                    {submitted ? (
+                    {status === 'success' ? (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
                         <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 bg-green-100">
                           <CheckCircle2 className="w-10 h-10 text-green-500" />
@@ -353,6 +360,15 @@ export default function ContactPage() {
                       </div>
                     ) : (
                       <form onSubmit={handleSubmit} className="space-y-6">
+
+                        {/* Error banner */}
+                        {status === 'error' && (
+                          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            <p className="text-sm font-medium">{errorMsg}</p>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div>
                             <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Full Name *</label>
@@ -380,12 +396,12 @@ export default function ContactPage() {
                           <select name="subject" value={formData.subject} onChange={handleChange} required
                             className="w-full px-4 py-3.5 rounded-xl text-gray-900 bg-gray-50 border-2 border-gray-200 focus:border-red-500 focus:bg-white focus:outline-none transition-all text-sm font-medium">
                             <option value="">Select a topic...</option>
-                            <option value="general">General Inquiry</option>
-                            <option value="property">Property Question</option>
-                            <option value="agent">Connect with an Agent</option>
-                            <option value="viewing">Schedule a Viewing</option>
-                            <option value="listing">List My Property</option>
-                            <option value="support">Customer Support</option>
+                            <option value="General Inquiry">General Inquiry</option>
+                            <option value="Property Question">Property Question</option>
+                            <option value="Connect with an Agent">Connect with an Agent</option>
+                            <option value="Schedule a Viewing">Schedule a Viewing</option>
+                            <option value="List My Property">List My Property</option>
+                            <option value="Customer Support">Customer Support</option>
                           </select>
                         </div>
 
@@ -396,10 +412,10 @@ export default function ContactPage() {
                             placeholder="Tell us more about what you're looking for..." />
                         </div>
 
-                        <button type="submit" disabled={loading}
+                        <button type="submit" disabled={status === 'loading'}
                           className="w-full inline-flex items-center justify-center gap-3 text-white font-black py-4 rounded-xl transition-all hover:scale-[1.02] hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-base"
                           style={{ background: 'linear-gradient(135deg,#c0392b,#96281b)', boxShadow: '0 8px 25px rgba(192,57,43,0.35)' }}>
-                          {loading
+                          {status === 'loading'
                             ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Sending your message…</>
                             : <><Send className="w-5 h-5" /> Send Message</>
                           }
@@ -418,7 +434,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-
     </div>
   );
 }
