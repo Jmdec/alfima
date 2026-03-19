@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
                 </p>
                 <p style="color:#555;font-size:14px;line-height:1.6;margin:0 0 24px;">
                   You'll be the first to know whenever we post new properties, exclusive listings,
-                  and real estate tips in Quezon City and Metro Manila.
+                  and real estate tips.
                 </p>
                 <a href="${siteUrl}/properties"
                    style="display:inline-block;background:linear-gradient(135deg,#c0392b,#96281b);color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 28px;border-radius:8px;">
