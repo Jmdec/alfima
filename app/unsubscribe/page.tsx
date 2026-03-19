@@ -1,22 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, XCircle, Loader2, MailX } from 'lucide-react';
 
-export default function UnsubscribePage() {
+function UnsubscribeContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get('email') ?? '';
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'invalid'>('loading');
+  const [status, setStatus]   = useState<'loading' | 'success' | 'error' | 'invalid'>('loading');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    if (!email) {
-      setStatus('invalid');
-      return;
-    }
+    if (!email) { setStatus('invalid'); return; }
 
     const run = async () => {
       try {
@@ -28,7 +25,6 @@ export default function UnsubscribePage() {
         const data = await res.json();
 
         if (!res.ok || !data.success) throw new Error(data.error ?? 'Failed to unsubscribe.');
-
         setStatus('success');
       } catch (err: unknown) {
         setStatus('error');
@@ -42,13 +38,9 @@ export default function UnsubscribePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg overflow-hidden">
-
-        {/* Header */}
         <div className="h-2 w-full" style={{ background: 'linear-gradient(90deg,#c0392b,#96281b)' }} />
-
         <div className="p-10 text-center">
 
-          {/* Loading */}
           {status === 'loading' && (
             <>
               <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-5">
@@ -59,7 +51,6 @@ export default function UnsubscribePage() {
             </>
           )}
 
-          {/* Success */}
           {status === 'success' && (
             <>
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
@@ -78,7 +69,6 @@ export default function UnsubscribePage() {
             </>
           )}
 
-          {/* Error */}
           {status === 'error' && (
             <>
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-5">
@@ -94,7 +84,6 @@ export default function UnsubscribePage() {
             </>
           )}
 
-          {/* Invalid — no email in URL */}
           {status === 'invalid' && (
             <>
               <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-5">
@@ -113,5 +102,17 @@ export default function UnsubscribePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function UnsubscribePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+      </div>
+    }>
+      <UnsubscribeContent />
+    </Suspense>
   );
 }
