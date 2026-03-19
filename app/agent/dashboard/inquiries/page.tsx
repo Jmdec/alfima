@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useAuth } from '@/lib/store';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   MessageSquare, Phone, Mail, Calendar, MapPin, Home,
   ChevronLeft, ChevronRight, Loader2, RefreshCw, Search,
   Clock, CheckCircle2, Eye, XCircle, SlidersHorizontal,
-  User, Inbox, Building2,
+  User, Inbox,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -81,10 +81,6 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-
-// ── Image URL helper ─────────────────────────────────────────────────────────
-// Laravel InquiryController returns thumbnail as raw path; PropertyController
-// returns full asset() URLs. This handles both.
 function imgUrl(path: string | null | undefined): string {
   if (!path) return '';
   if (path.startsWith('http')) return path;
@@ -101,7 +97,6 @@ const CONTACT_LABEL: Record<string, string> = {
   whatsapp: 'WhatsApp',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
@@ -139,14 +134,9 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
         ? 'border-blue-500/30 shadow-lg shadow-blue-500/10'
         : 'border-white/10 hover:border-white/20'
     }`}>
-
-      {/* Top accent bar */}
       <div className={`h-0.5 w-full ${cfg.dot}`} />
-
       <div className="p-5">
         <div className="flex gap-4">
-
-          {/* Property thumbnail */}
           <div className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-white/5 border border-white/10">
             {inquiry.property?.thumbnail
               ? <img src={imgUrl(inquiry.property.thumbnail)} alt={inquiry.property?.title} className="w-full h-full object-cover" />
@@ -155,15 +145,11 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
                 </div>
             }
           </div>
-
           <div className="flex-1 min-w-0">
-
-            {/* Status + time row */}
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
-                  {cfg.icon}
-                  {cfg.label}
+                  {cfg.icon}{cfg.label}
                 </span>
                 {isNew && (
                   <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-300 uppercase tracking-wider animate-pulse">
@@ -173,8 +159,6 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
               </div>
               <span className="text-xs text-white/25 flex-shrink-0">{timeAgo(inquiry.created_at)}</span>
             </div>
-
-            {/* Property name */}
             <p className="text-white font-bold text-sm truncate mb-0.5">
               {inquiry.property?.title ?? `Property #${inquiry.property_id}`}
             </p>
@@ -184,38 +168,30 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
                 {inquiry.property.address}, {inquiry.property.city}
               </p>
             )}
-
-            {/* Lead info box */}
             <div className="bg-white/5 border border-white/8 rounded-xl p-3 mb-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                {/* Name */}
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
                     <User className="w-3 h-3 text-white/50" />
                   </div>
                   <span className="text-sm font-bold text-white">{inquiry.lead_name}</span>
                 </div>
-                {/* Phone */}
                 <a href={`tel:${inquiry.lead_phone}`}
                   className="flex items-center gap-1.5 text-xs text-white/50 hover:text-emerald-400 transition-colors">
                   <Phone className="w-3 h-3" />{inquiry.lead_phone}
                 </a>
-                {/* Email */}
                 {inquiry.lead_email && (
                   <a href={`mailto:${inquiry.lead_email}`}
                     className="flex items-center gap-1.5 text-xs text-white/50 hover:text-blue-400 transition-colors truncate max-w-[180px]">
                     <Mail className="w-3 h-3 flex-shrink-0" />{inquiry.lead_email}
                   </a>
                 )}
-                {/* Preferred contact */}
                 <span className="flex items-center gap-1 text-[11px] text-white/30 ml-auto">
                   <MessageSquare className="w-3 h-3" />
                   Prefers {CONTACT_LABEL[inquiry.preferred_contact] ?? inquiry.preferred_contact}
                 </span>
               </div>
             </div>
-
-            {/* Viewing date */}
             {inquiry.viewing_date && (
               <div className="mb-3">
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-400 bg-violet-500/10 border border-violet-500/30 px-3 py-1.5 rounded-full">
@@ -224,8 +200,6 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
                 </span>
               </div>
             )}
-
-            {/* Message */}
             {inquiry.message && (
               <div>
                 <p className={`text-xs text-white/40 italic leading-relaxed ${expanded ? '' : 'line-clamp-1'}`}>
@@ -242,11 +216,7 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
           </div>
         </div>
       </div>
-
-      {/* Footer */}
       <div className="px-5 py-3 bg-white/3 border-t border-white/8 flex items-center gap-2 flex-wrap">
-
-        {/* Contact actions */}
         <a href={`tel:${inquiry.lead_phone}`}
           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white/50 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all">
           <Phone className="w-3.5 h-3.5" /> Call
@@ -257,8 +227,6 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
             <Mail className="w-3.5 h-3.5" /> Email
           </a>
         )}
-
-        {/* Move to label + status buttons */}
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           <span className="text-[11px] text-white/25 font-medium">Move to:</span>
           {nextStatuses.map(ns => {
@@ -268,8 +236,7 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
                 key={ns.value}
                 disabled={updating}
                 onClick={() => onStatusChange(inquiry.id, ns.value)}
-                className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed
-                  border-white/10 bg-white/5 text-white/40 hover:${nCfg.bg} hover:${nCfg.border} hover:${nCfg.text}`}>
+                className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed border-white/10 bg-white/5 text-white/40 hover:${nCfg.bg} hover:${nCfg.border} hover:${nCfg.text}`}>
                 {updating
                   ? <Loader2 className="w-3 h-3 animate-spin" />
                   : <span className={`w-2 h-2 rounded-full ${nCfg.dot}`} />
@@ -284,8 +251,8 @@ function InquiryCard({ inquiry, onStatusChange, updating }: {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
-export default function AgentInquiriesPage() {
+// ── Inner component (uses useSearchParams) ────────────────────────────────────
+function AgentInquiriesContent() {
   const { user, initialized } = useAuth();
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -350,7 +317,6 @@ export default function AgentInquiriesPage() {
   });
 
   const totalNew = data?.data.filter(i => i.status === 'new').length ?? 0;
-
   const tabCounts = (Object.keys(STATUS_CONFIG) as Inquiry['status'][]).reduce<Record<string, number>>(
     (acc, s) => ({ ...acc, [s]: data?.data.filter(i => i.status === s).length ?? 0 }),
     {}
@@ -358,8 +324,6 @@ export default function AgentInquiriesPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-
-      {/* ── Header ── */}
       <div className="flex items-start justify-between flex-wrap gap-4 mb-10">
         <div>
           <div className="inline-flex items-center gap-2 bg-red-600/20 border border-red-500/30 rounded-full px-3 py-1 mb-3">
@@ -387,10 +351,7 @@ export default function AgentInquiriesPage() {
         </button>
       </div>
 
-      {/* ── Filter panel ── */}
       <div className="glass rounded-2xl border border-white/10 p-5 mb-6">
-
-        {/* Search */}
         <div className="relative mb-4">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
           <input
@@ -401,8 +362,6 @@ export default function AgentInquiriesPage() {
             className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 text-sm focus:outline-none focus:border-red-500/50 transition-all"
           />
         </div>
-
-        {/* Status filter tabs */}
         <div className="flex items-center gap-2 flex-wrap">
           <SlidersHorizontal className="w-3.5 h-3.5 text-white/25 flex-shrink-0" />
           <button
@@ -437,7 +396,6 @@ export default function AgentInquiriesPage() {
         </div>
       </div>
 
-      {/* ── Content ── */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-14 h-14 rounded-2xl glass border border-white/10 flex items-center justify-center">
@@ -478,7 +436,6 @@ export default function AgentInquiriesPage() {
         </div>
       )}
 
-      {/* ── Pagination ── */}
       {data && data.last_page > 1 && (
         <div className="flex items-center justify-between mt-10 pt-6 border-t border-white/10">
           <p className="text-white/30 text-sm">
@@ -513,5 +470,18 @@ export default function AgentInquiriesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Page export — wraps content in Suspense ───────────────────────────────────
+export default function AgentInquiriesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 text-red-400 animate-spin" />
+      </div>
+    }>
+      <AgentInquiriesContent />
+    </Suspense>
   );
 }

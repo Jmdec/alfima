@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/lib/store';
+
 type Role = 'buyer' | 'agent';
 
 interface FormData {
@@ -14,7 +15,9 @@ interface FormData {
 }
 
 export default function RegisterPage() {
-  const router = useRouter();
+  const router  = useRouter();
+  const setUser = useAuth(state => state.setUser);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,7 +26,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState<FormData>({
     name: '', email: '', phone: '', password: '', confirmPassword: '', role: 'buyer',
   });
-const setUser = useAuth(state => state.setUser);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const val = name === 'phone' ? value.replace(/\D/g, '').slice(0, 11) : value;
@@ -62,13 +65,13 @@ const setUser = useAuth(state => state.setUser);
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-    const data = await res.json();
-if (!res.ok) { setError(data.error ?? 'Registration failed.'); return; }
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'Registration failed.'); return; }
 
-// ✅ Populate the store immediately — same as login page does
-if (data.user) setUser(data.user);
+      // ✅ Populate store immediately so navbar shows the user without refresh
+      if (data.user) setUser(data.user);
 
-router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
+      router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
     } catch { setError('Something went wrong. Please try again.'); }
     finally { setLoading(false); }
   };
@@ -89,7 +92,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           background: #f5f0e8;
         }
 
-        /* LEFT PANEL */
         .hero-panel {
           flex: 1;
           position: relative;
@@ -186,7 +188,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           letter-spacing: 0.04em;
         }
 
-        /* RIGHT PANEL — form */
         .form-panel {
           width: 100%;
           max-width: 520px;
@@ -200,7 +201,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           overflow-y: auto;
         }
 
-        /* Top accent */
         .top-accent {
           position: fixed;
           top: 0;
@@ -212,7 +212,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
         }
         @media (max-width: 1023px) { .top-accent { width: 100%; } }
 
-        /* Logo */
         .logo-row {
           display: flex;
           align-items: center;
@@ -245,7 +244,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           text-transform: uppercase;
         }
 
-        /* Heading */
         .heading-block { margin-bottom: 28px; }
         .heading-block h1 {
           font-family: 'Cormorant Garamond', serif;
@@ -267,7 +265,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
         .heading-block p a { color: #b8892e; text-decoration: none; font-weight: 500; }
         .heading-block p a:hover { text-decoration: underline; }
 
-        /* Error */
         .error-box {
           display: flex;
           align-items: center;
@@ -285,7 +282,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           margin: 0;
         }
 
-        /* Section divider */
         .section-divider {
           display: flex;
           align-items: center;
@@ -301,7 +297,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           text-transform: uppercase;
         }
 
-        /* Role selector */
         .role-grid {
           display: flex;
           gap: 10px;
@@ -342,7 +337,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           letter-spacing: 0.02em;
         }
 
-        /* Fields */
         .field { margin-bottom: 18px; }
         .field-label {
           display: block;
@@ -400,7 +394,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           gap: 4px;
         }
 
-        /* pw-wrap */
         .pw-wrap { position: relative; }
         .pw-toggle {
           position: absolute;
@@ -415,7 +408,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           display: flex;
         }
 
-        /* Phone counter */
         .phone-counter {
           position: absolute;
           right: 14px;
@@ -427,14 +419,12 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
           pointer-events: none;
         }
 
-        /* Two-col fields */
         .field-row {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 12px;
         }
 
-        /* Terms */
         .terms-row {
           display: flex;
           align-items: flex-start;
@@ -466,7 +456,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
         .terms-label a { color: #b8892e; text-decoration: none; font-weight: 500; }
         .terms-label a:hover { text-decoration: underline; }
 
-        /* Submit */
         .submit-btn {
           width: 100%;
           padding: 13px;
@@ -494,7 +483,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
         .submit-btn:hover:not(:disabled) { background: #2c2010; }
         .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Spinner */
         .spinner {
           width: 12px;
           height: 12px;
@@ -506,7 +494,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Sign in row */
         .signin-row {
           text-align: center;
           font-family: 'DM Sans', sans-serif;
@@ -650,7 +637,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
 
               {/* Password row */}
               <div className="field-row">
-                {/* Password */}
                 <div className="field">
                   <label className="field-label">Password <span className="req">*</span></label>
                   <div className="pw-wrap">
@@ -666,7 +652,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
                   {fieldErrors.password && <p className="field-err">⚠ {fieldErrors.password}</p>}
                 </div>
 
-                {/* Confirm */}
                 <div className="field">
                   <label className="field-label">Confirm <span className="req">*</span></label>
                   <div className="pw-wrap">
@@ -712,7 +697,6 @@ router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
               </button>
             </form>
 
-            {/* Sign in */}
             <p className="signin-row">
               Already have an account?{' '}
               <Link href="/login">Sign in</Link>

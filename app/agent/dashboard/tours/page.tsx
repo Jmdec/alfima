@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useAuth } from '@/lib/store';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -9,7 +9,6 @@ import {
   Clock, CheckCircle2, XCircle, User, Inbox, MessageSquare,
 } from 'lucide-react';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 interface TourProperty {
   id: number;
   title: string;
@@ -41,7 +40,6 @@ interface PaginatedResponse {
   total: number;
 }
 
-// ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   pending: {
     label: 'Pending',
@@ -79,7 +77,6 @@ const STATUS_CONFIG = {
 
 const IMG = process.env.NEXT_PUBLIC_API_IMG ?? '';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
@@ -105,7 +102,6 @@ function formatTourTime(timeStr: string): string {
   return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-// ── Tour Card ─────────────────────────────────────────────────────────────────
 function TourCard({
   tour, onStatusChange, updating,
 }: {
@@ -113,7 +109,7 @@ function TourCard({
   onStatusChange: (id: number, status: Tour['status']) => void;
   updating: boolean;
 }) {
-  const cfg     = STATUS_CONFIG[tour.status];
+  const cfg       = STATUS_CONFIG[tour.status];
   const isPending = tour.status === 'pending';
 
   const nextStatuses = (
@@ -128,40 +124,27 @@ function TourCard({
   return (
     <div
       style={{ background: '#fff', fontFamily: 'system-ui, sans-serif' }}
-      className={`rounded-2xl border transition-all duration-200 overflow-hidden
-        ${isPending
+      className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+        isPending
           ? 'border-amber-200 shadow-[0_0_0_3px_rgba(251,191,36,0.1)] shadow-sm'
           : 'border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
-        }`}
+      }`}
     >
-      {/* Colored top bar */}
       <div className={`h-1 w-full ${cfg.bar}`} />
-
       <div className="p-5">
         <div className="flex gap-4">
-
-          {/* Property thumbnail */}
           <div className="flex-shrink-0 w-[52px] h-[52px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
             {tour.property?.thumbnail
-              ? <img
-                  src={`${IMG}${tour.property.thumbnail}`}
-                  alt={tour.property.title}
-                  className="w-full h-full object-cover"
-                />
-              : <div className="w-full h-full flex items-center justify-center">
-                  <Home className="w-5 h-5 text-slate-400" />
-                </div>
+              ? <img src={`${IMG}${tour.property.thumbnail}`} alt={tour.property.title} className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center"><Home className="w-5 h-5 text-slate-400" /></div>
             }
           </div>
-
           <div className="flex-1 min-w-0">
-            {/* Top row: status badge + time */}
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${cfg.pill}`}>
                   {cfg.icon}{cfg.label}
                 </span>
-                {/* Tour type badge */}
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
@@ -183,8 +166,6 @@ function TourCard({
               </div>
               <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0 }}>{timeAgo(tour.created_at)}</span>
             </div>
-
-            {/* Property name */}
             <p style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 2 }} className="truncate">
               {tour.property?.title ?? `Property #${tour.property_id}`}
             </p>
@@ -194,21 +175,13 @@ function TourCard({
                 {tour.property.address}, {tour.property.city}
               </p>
             )}
-
-            {/* Date + time highlight */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fefce8', border: '1px solid #fde68a', borderRadius: 10, padding: '8px 14px', marginBottom: 10 }}>
               <Calendar className="w-4 h-4 text-amber-600 flex-shrink-0" />
               <div>
-                <p style={{ fontSize: 13, fontWeight: 800, color: '#92400e', margin: 0 }}>
-                  {formatTourDate(tour.tour_date)}
-                </p>
-                <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>
-                  {formatTourTime(tour.tour_time)}
-                </p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#92400e', margin: 0 }}>{formatTourDate(tour.tour_date)}</p>
+                <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>{formatTourTime(tour.tour_time)}</p>
               </div>
             </div>
-
-            {/* Lead info row */}
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px' }}
               className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-2">
@@ -217,15 +190,11 @@ function TourCard({
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{tour.lead_name}</span>
               </div>
-              <a href={`tel:${tour.lead_phone}`}
-                style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-                className="hover:text-blue-600 transition-colors">
+              <a href={`tel:${tour.lead_phone}`} style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }} className="hover:text-blue-600 transition-colors">
                 <Phone className="w-3 h-3" />{tour.lead_phone}
               </a>
               {tour.lead_email && (
-                <a href={`mailto:${tour.lead_email}`}
-                  style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}
-                  className="hover:text-blue-600 transition-colors">
+                <a href={`mailto:${tour.lead_email}`} style={{ fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }} className="hover:text-blue-600 transition-colors">
                   <Mail className="w-3 h-3 flex-shrink-0" />{tour.lead_email}
                 </a>
               )}
@@ -236,41 +205,25 @@ function TourCard({
           </div>
         </div>
       </div>
-
-      {/* Footer actions */}
-      <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '10px 16px' }}
-        className="flex items-center gap-2 flex-wrap">
-
-        <a href={`tel:${tour.lead_phone}`}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, background: '#fff', border: '1px solid #e2e8f0', color: '#374151', textDecoration: 'none', transition: 'all 0.15s' }}
-          className="hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50">
+      <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '10px 16px' }} className="flex items-center gap-2 flex-wrap">
+        <a href={`tel:${tour.lead_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, background: '#fff', border: '1px solid #e2e8f0', color: '#374151', textDecoration: 'none', transition: 'all 0.15s' }} className="hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50">
           <Phone className="w-3.5 h-3.5" /> Call
         </a>
         {tour.lead_email && (
-          <a href={`mailto:${tour.lead_email}?subject=Re: Tour for ${tour.property?.title ?? 'property'}`}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, background: '#fff', border: '1px solid #e2e8f0', color: '#374151', textDecoration: 'none', transition: 'all 0.15s' }}
-            className="hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50">
+          <a href={`mailto:${tour.lead_email}?subject=Re: Tour for ${tour.property?.title ?? 'property'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, background: '#fff', border: '1px solid #e2e8f0', color: '#374151', textDecoration: 'none', transition: 'all 0.15s' }} className="hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50">
             <Mail className="w-3.5 h-3.5" /> Email
           </a>
         )}
-
         <div className="flex-1" />
-
         <div className="flex items-center gap-1.5 flex-wrap">
           <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500, marginRight: 4 }}>Move to:</span>
           {nextStatuses.map(ns => {
             const nCfg = STATUS_CONFIG[ns.value];
             return (
-              <button
-                key={ns.value}
-                disabled={updating}
-                onClick={() => onStatusChange(tour.id, ns.value)}
+              <button key={ns.value} disabled={updating} onClick={() => onStatusChange(tour.id, ns.value)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#374151', cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.5 : 1, transition: 'all 0.15s' }}
                 className="hover:border-slate-400 hover:bg-slate-50">
-                {updating
-                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                  : <span className={`w-2 h-2 rounded-full ${nCfg.dot}`} />
-                }
+                {updating ? <Loader2 className="w-3 h-3 animate-spin" /> : <span className={`w-2 h-2 rounded-full ${nCfg.dot}`} />}
                 {ns.label}
               </button>
             );
@@ -281,8 +234,8 @@ function TourCard({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
-export default function AgentToursPage() {
+// ── Inner component (uses useSearchParams) ────────────────────────────────────
+function AgentToursContent() {
   const { user, initialized } = useAuth();
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -324,7 +277,6 @@ export default function AgentToursPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      // Optimistic update
       setData(prev => prev
         ? { ...prev, data: prev.data.map(t => t.id === id ? { ...t, status } : t) }
         : prev
@@ -348,7 +300,6 @@ export default function AgentToursPage() {
   });
 
   const totalPending = data?.data.filter(t => t.status === 'pending').length ?? 0;
-
   const tabCounts = (Object.keys(STATUS_CONFIG) as Tour['status'][]).reduce<Record<string, number>>(
     (acc, s) => ({ ...acc, [s]: data?.data.filter(t => t.status === s).length ?? 0 }),
     {}
@@ -358,14 +309,12 @@ export default function AgentToursPage() {
     <div style={{ background: '#f1f5f9', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 16px' }}>
 
-        {/* ── Header ── */}
         <div style={{ marginBottom: 28 }} className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', margin: 0 }}>Tours</h1>
               {totalPending > 0 && (
-                <span style={{ background: '#d97706', color: '#fff', fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 99 }}
-                  className="animate-pulse">
+                <span style={{ background: '#d97706', color: '#fff', fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 99 }} className="animate-pulse">
                   {totalPending} pending
                 </span>
               )}
@@ -374,41 +323,30 @@ export default function AgentToursPage() {
               {loading ? 'Loading…' : `${data?.total ?? 0} total tour${(data?.total ?? 0) !== 1 ? 's' : ''} booked`}
             </p>
           </div>
-          <button
-            onClick={() => fetchTours(true)}
-            disabled={refreshing}
+          <button onClick={() => fetchTours(true)} disabled={refreshing}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', transition: 'all 0.15s' }}
             className="hover:border-slate-300 hover:bg-slate-50">
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
 
-        {/* ── Search + Filter tabs ── */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: 16, marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
           <div style={{ position: 'relative', marginBottom: 14 }}>
             <Search style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', width: 16, height: 16 }} />
-            <input
-              type="text"
-              placeholder="Search by name, phone, email, or property…"
-              value={search}
+            <input type="text" placeholder="Search by name, phone, email, or property…" value={search}
               onChange={e => setSearch(e.target.value)}
               style={{ width: '100%', paddingLeft: 42, paddingRight: 16, paddingTop: 11, paddingBottom: 11, borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, color: '#0f172a', outline: 'none', background: '#f8fafc', boxSizing: 'border-box', transition: 'border 0.15s' }}
               onFocus={e => (e.target.style.borderColor = '#f59e0b')}
               onBlur={e  => (e.target.style.borderColor = '#e2e8f0')}
             />
           </div>
-
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => { setStatusFilter(''); setPage(1); }}
+            <button onClick={() => { setStatusFilter(''); setPage(1); }}
               style={{ padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', transition: 'all 0.15s', background: !statusFilter ? '#0f172a' : '#f1f5f9', color: !statusFilter ? '#fff' : '#64748b' }}>
               All {data ? `(${data.total})` : ''}
             </button>
             {(Object.entries(STATUS_CONFIG) as [Tour['status'], typeof STATUS_CONFIG[Tour['status']]][]).map(([key, cfg]) => (
-              <button
-                key={key}
-                onClick={() => { setStatusFilter(key); setPage(1); }}
+              <button key={key} onClick={() => { setStatusFilter(key); setPage(1); }}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
                   background: statusFilter === key ? cfg.activeTab : '#f1f5f9',
                   color: statusFilter === key ? '#fff' : '#64748b',
@@ -418,8 +356,7 @@ export default function AgentToursPage() {
               </button>
             ))}
             {(search || statusFilter) && (
-              <button
-                onClick={() => { setSearch(''); setStatusFilter(''); }}
+              <button onClick={() => { setSearch(''); setStatusFilter(''); }}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', marginLeft: 'auto' }}>
                 <XCircle className="w-3.5 h-3.5" /> Clear
               </button>
@@ -427,7 +364,6 @@ export default function AgentToursPage() {
           </div>
         </div>
 
-        {/* ── Content ── */}
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '80px 0', gap: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 16, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
@@ -458,32 +394,22 @@ export default function AgentToursPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {displayed.map(tour => (
-              <TourCard
-                key={tour.id}
-                tour={tour}
-                onStatusChange={handleStatusChange}
-                updating={updatingId === tour.id}
-              />
+              <TourCard key={tour.id} tour={tour} onStatusChange={handleStatusChange} updating={updatingId === tour.id} />
             ))}
           </div>
         )}
 
-        {/* ── Pagination ── */}
         {data && data.last_page > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
             <p style={{ fontSize: 13, color: '#64748b' }}>
               Page <strong style={{ color: '#0f172a' }}>{data.current_page}</strong> of <strong style={{ color: '#0f172a' }}>{data.last_page}</strong>
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, fontWeight: 600, color: '#374151', cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.4 : 1, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 <ChevronLeft className="w-4 h-4" /> Prev
               </button>
-              <button
-                onClick={() => setPage(p => Math.min(data.last_page, p + 1))}
-                disabled={page === data.last_page}
+              <button onClick={() => setPage(p => Math.min(data.last_page, p + 1))} disabled={page === data.last_page}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, fontWeight: 600, color: '#374151', cursor: page === data.last_page ? 'not-allowed' : 'pointer', opacity: page === data.last_page ? 0.4 : 1, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                 Next <ChevronRight className="w-4 h-4" />
               </button>
@@ -492,5 +418,18 @@ export default function AgentToursPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Page export — wraps in Suspense ───────────────────────────────────────────
+export default function AgentToursPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9' }}>
+        <Loader2 style={{ width: 32, height: 32, color: '#f59e0b' }} className="animate-spin" />
+      </div>
+    }>
+      <AgentToursContent />
+    </Suspense>
   );
 }
