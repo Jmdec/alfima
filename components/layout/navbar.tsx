@@ -20,6 +20,9 @@ export function Navbar() {
   const [isOpen,         setIsOpen]         = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [scrolled,       setScrolled]       = useState(false);
+  const [mounted,        setMounted]        = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -49,6 +52,8 @@ export function Navbar() {
     user?.role === 'admin' ? '/admin' :
     user?.role === 'agent' ? '/agent/dashboard' :
     '/';
+
+  const isAgent = user?.role === 'agent';
 
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
@@ -89,15 +94,18 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
-            {loading && <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />}
+            {(!mounted || loading) && <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />}
 
-            {!loading && user ? (
+            {mounted && !loading && user ? (
               <>
-                <Link href="/list-property" className="hidden sm:inline">
-                  <button className="text-sm font-bold text-white/80 hover:text-white border border-white/20 hover:border-white/40 px-4 py-1.5 rounded-full transition-all hover:bg-white/10">
-                    + List Property
-                  </button>
-                </Link>
+                {/* ✅ Only visible to agents */}
+                {isAgent && (
+                  <Link href="/list-property" className="hidden sm:inline">
+                    <button className="text-sm font-bold text-white/80 hover:text-white border border-white/20 hover:border-white/40 px-4 py-1.5 rounded-full transition-all hover:bg-white/10">
+                      + List Property
+                    </button>
+                  </Link>
+                )}
 
                 <div className="relative" id="user-menu-wrap">
                   <button onClick={() => setIsUserMenuOpen(o => !o)} className="flex items-center gap-2 hover:opacity-80 transition">
@@ -136,13 +144,9 @@ export function Navbar() {
                   )}
                 </div>
               </>
-            ) : !loading && (
+            ) : mounted && !loading && (
               <>
-                <Link href="/list-property" className="hidden sm:inline">
-                  <button className="text-sm font-bold text-white/70 hover:text-white border border-white/20 hover:border-white/40 px-4 py-1.5 rounded-full transition-all hover:bg-white/10">
-                    + List Property
-                  </button>
-                </Link>
+                {/* ✅ Removed from logged-out state entirely — guests can't list property */}
                 <Link href="/login">
                   <button className="text-sm font-semibold text-white/80 hover:text-white transition px-3 py-1.5">Login</button>
                 </Link>
@@ -178,6 +182,13 @@ export function Navbar() {
             <div className="pt-2 border-t border-white/10 mt-2">
               {user ? (
                 <>
+                  {/* ✅ Mobile: also only show for agents */}
+                  {isAgent && (
+                    <Link href="/list-property" onClick={() => setIsOpen(false)}
+                      className="block px-4 py-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition font-medium">
+                      + List Property
+                    </Link>
+                  )}
                   <Link href={dashboardHref} onClick={() => setIsOpen(false)}
                     className="block px-4 py-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition font-medium">
                     Dashboard

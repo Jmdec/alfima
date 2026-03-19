@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
-
+import { useAuth } from '@/lib/store';
 type Role = 'buyer' | 'agent';
 
 interface FormData {
@@ -23,7 +23,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState<FormData>({
     name: '', email: '', phone: '', password: '', confirmPassword: '', role: 'buyer',
   });
-
+const setUser = useAuth(state => state.setUser);
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const val = name === 'phone' ? value.replace(/\D/g, '').slice(0, 11) : value;
@@ -62,10 +62,13 @@ export default function RegisterPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Registration failed.'); return; }
-      router.push(formData.role === 'agent' ? '/agent/dashboard' : '/');
-      router.refresh();
+    const data = await res.json();
+if (!res.ok) { setError(data.error ?? 'Registration failed.'); return; }
+
+// ✅ Populate the store immediately — same as login page does
+if (data.user) setUser(data.user);
+
+router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
     } catch { setError('Something went wrong. Please try again.'); }
     finally { setLoading(false); }
   };

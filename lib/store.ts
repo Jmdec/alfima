@@ -24,51 +24,61 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
+// Prevent duplicate in-flight requests
+let fetchPromise: Promise<void> | null = null;
+
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   loading: false,
   initialized: false,
 
   fetchUser: async () => {
-    // Skip if already initialized
-    if (get().initialized) return;
+    // If a fetch is already in-flight, reuse it
+    if (fetchPromise) return fetchPromise;
+
+    // If already loading, skip
+    if (get().loading) return;
 
     set({ loading: true });
-    try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
 
-      console.log('[fetchUser] status:', res.status);
+    fetchPromise = (async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        console.log('[fetchUser] user:', data.user);
-        set({ user: data.user, initialized: true });
-      } else {
-        console.warn('[fetchUser] not ok — clearing user');
-        set({ user: null, initialized: true });
+        if (res.ok) {
+          const data = await res.json();
+          set({ user: data.user, initialized: true, loading: false });
+        } else {
+          set({ user: null, initialized: true, loading: false });
+        }
+      } catch (e) {
+        console.error('[fetchUser] error:', e);
+        set({ user: null, initialized: true, loading: false });
+      } finally {
+        fetchPromise = null;
       }
-    } catch (e) {
-      console.error('[fetchUser] error:', e);
-      set({ user: null, initialized: true });
-    } finally {
-      set({ loading: false });
-    }
+    })();
+
+    return fetchPromise;
   },
 
   setUser: (user) => {
-    console.log('[setUser]', user);
-    set({ user, initialized: true });
+    set({ user, initialized: true, loading: false });
   },
 
   logout: async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch { /* ignore */ }
-    set({ user: null, initialized: true });
+    fetchPromise = null;
+    set({ user: null, initialized: false, loading: false });
   },
 }));
 
-// ── Favorites ─────────────────────────────────────────────────────────────────
+// Favorites
 interface FavoritesState {
   favorites: number[];
   toggleFavorite: (id: number) => void;

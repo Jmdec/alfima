@@ -1,37 +1,21 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/store';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUser   = useAuth(state => state.fetchUser);
   const initialized = useAuth(state => state.initialized);
+  const pathname    = usePathname();
 
   useEffect(() => {
-    fetchUser();
-  }, []); // ✅ empty deps — only runs once on app mount, not on every navigation
-
-  if (!initialized) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#0a0a0a',
-      }}>
-        <div style={{
-          width: 32,
-          height: 32,
-          border: '3px solid rgba(255,255,255,0.1)',
-          borderTopColor: '#ef4444',
-          borderRadius: '50%',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+    // Run on first mount AND after login/logout navigations
+    // initialized resets to false after logout, so this re-fetches correctly
+    if (!initialized) {
+      fetchUser();
+    }
+  }, [pathname, initialized, fetchUser]);
 
   return <>{children}</>;
 }
