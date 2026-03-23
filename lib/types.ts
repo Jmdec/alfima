@@ -36,6 +36,7 @@ export interface PropertyImage {
 }
 
 export interface Property {
+  blur_hash: string;
   id: number;
   title: string;
   description: string | null;

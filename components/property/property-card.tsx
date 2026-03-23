@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Property } from '@/lib/types';
 import { Heart, MapPin, Bed, Bath, Ruler } from 'lucide-react';
 import { useFavorites } from '@/lib/store';
@@ -8,6 +9,26 @@ import { useState } from 'react';
 
 interface PropertyCardProps {
   property: Property;
+  priority?: boolean; // pass true for above-the-fold cards (first 3 on listing page)
+}
+
+const BLUR_PLACEHOLDER =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
+const API_BASE = (process.env.NEXT_PUBLIC_API_IMG ?? 'http://localhost:8000').replace(/\/$/, '');
+
+/**
+ * Guarantees an absolute URL.
+ * - Already absolute (http/https) → returned as-is
+ * - Relative path ("agents/avatars/abc.jpg" or "/agents/avatars/abc.jpg")
+ *   → prepended with NEXT_PUBLIC_API_IMG
+ * - null / undefined / empty → FALLBACK_IMG
+ */
+function toAbsoluteUrl(url: string | null | undefined): string {
+  if (!url) return FALLBACK_IMG;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_BASE}/${url.replace(/^\//, '')}`;
 }
 
 // ── Price formatter ───────────────────────────────────────────────────────────
@@ -27,14 +48,18 @@ function formatPrice(amount: number): string {
   return `₱${amount.toLocaleString('en-PH')}`;
 }
 
-export function PropertyCard({ property }: PropertyCardProps) {
+export function PropertyCard({ property, priority = false }: PropertyCardProps) {
   const { isFavorited, toggleFavorite } = useFavorites();
   const [imageError, setImageError] = useState(false);
   const favorited = isFavorited(property.id);
 
-  const imageUrl = imageError
-    ? 'https://via.placeholder.com/400x300?text=No+Image'
-    : (property.images?.[0]?.url ?? property.thumbnail ?? 'https://via.placeholder.com/400x300?text=No+Image');
+  // Property hero image — always absolute
+  const rawImageUrl = imageError
+    ? FALLBACK_IMG
+    : toAbsoluteUrl(property.images?.[0]?.url ?? property.thumbnail);
+
+  // Agent avatar — always absolute
+  const agentAvatarUrl = toAbsoluteUrl(property.agent?.avatar);
 
   const listingType = property.listing_type ?? property.listingType;
   const isRent = listingType === 'rent';
@@ -42,49 +67,48 @@ export function PropertyCard({ property }: PropertyCardProps) {
   const rawPrice = Number(
     isRent
       ? (property.price_per_month ?? property.pricePerMonth ?? property.price ?? 0)
-      : (property.price ?? property.price_per_month ?? property.pricePerMonth ?? 0)
+      : (property.price ?? property.price_per_month ?? property.pricePerMonth ?? 0),
   );
 
-  const priceDisplay = isRent
-    ? `${formatPrice(rawPrice)}/mo`
-    : formatPrice(rawPrice);
-
-  const fullPrice = isRent
+  const priceDisplay = isRent ? `${formatPrice(rawPrice)}/mo` : formatPrice(rawPrice);
+  const fullPrice    = isRent
     ? `₱${rawPrice.toLocaleString('en-PH')}/mo`
     : `₱${rawPrice.toLocaleString('en-PH')}`;
 
   return (
     <Link href={`/properties/${property.id}`} className="h-full">
-      {/* ✅ flex flex-col + h-full ensures card stretches to fill the grid row */}
       <div className="flex flex-col h-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-105 group cursor-pointer hover:bg-white/15">
 
-        {/* Image */}
+        {/* ── Property image ── */}
         <div className="relative h-48 flex-shrink-0 overflow-hidden bg-muted">
-          <img
-            src={imageUrl}
+          <Image
+            src={rawImageUrl}
             alt={property.title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            priority={priority}
+            loading={priority ? 'eager' : 'lazy'}
+            placeholder="blur"
+            blurDataURL={BLUR_PLACEHOLDER}
+            className="object-cover group-hover:scale-110 transition duration-300"
             onError={() => setImageError(true)}
-            className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
           />
 
           {/* Listing type badge */}
-          <div className="absolute top-4 left-4 bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-full text-xs font-bold">
+          <div className="absolute top-4 left-4 bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-2 rounded-full text-xs font-bold z-10">
             {isRent ? 'For Rent' : 'For Sale'}
           </div>
 
           {/* Favorite button */}
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              toggleFavorite(property.id);
-            }}
-            className="absolute top-4 right-4 bg-white/10 backdrop-blur hover:bg-white/20 p-2 rounded-full transition"
+            onClick={e => { e.preventDefault(); toggleFavorite(property.id); }}
+            className="absolute top-4 right-4 bg-white/10 backdrop-blur hover:bg-white/20 p-2 rounded-full transition z-10"
           >
             <Heart className={`w-5 h-5 ${favorited ? 'fill-accent stroke-accent' : 'stroke-white'}`} />
           </button>
         </div>
 
-        {/* ✅ flex-1 makes this content area grow to fill remaining card height */}
+        {/* ── Card body ── */}
         <div className="flex flex-col flex-1 p-4">
 
           {/* Price */}
@@ -93,9 +117,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
               {priceDisplay}
             </p>
             {rawPrice >= 1_000 && (
-              <p className="text-[11px] text-muted-foreground/70 -mt-0.5">
-                {fullPrice}
-              </p>
+              <p className="text-[11px] text-muted-foreground/70 -mt-0.5">{fullPrice}</p>
             )}
           </div>
 
@@ -134,17 +156,22 @@ export function PropertyCard({ property }: PropertyCardProps) {
             )}
           </div>
 
-          {/* ✅ mt-auto pushes agent info to the bottom of the card */}
+          {/* ── Agent avatar — plain <img>, no next/image optimization needed at 32px ── */}
           {property.agent && (
             <div className="mt-auto flex items-center gap-2 pt-3 border-t border-border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={property.agent.avatar ?? 'https://via.placeholder.com/32'}
+                src={agentAvatarUrl}
                 alt={property.agent.name}
-                className="w-8 h-8 rounded-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/32'; }}
+                width={32}
+                height={32}
+                className="rounded-full object-cover flex-shrink-0 ring-1 ring-white/20 w-8 h-8"
+                onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(property.agent!.name)}&size=32&background=random`; }}
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground line-clamp-1">Agent: {property.agent.name}</p>
+                <p className="text-xs font-semibold text-foreground line-clamp-1">
+                  Agent: {property.agent.name}
+                </p>
               </div>
             </div>
           )}

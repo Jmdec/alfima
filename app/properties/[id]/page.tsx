@@ -1,15 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, use } from 'react';
+import Image from 'next/image';
+import { useEffect, useState, use, useCallback } from 'react';
 import { Property } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useFavorites, useAuth } from '@/lib/store';
 import {
   Heart, MapPin, Phone, Mail, Share2, ChevronLeft, ChevronRight,
   X, Search, CheckCircle2, User, MessageSquare, Calendar,
-  ArrowRight, Loader2, Building2, Clock, Video, Home, Lock
+  ArrowRight, Loader2, Building2, Clock, Video, Home, Lock,
 } from 'lucide-react';
+
+// ── Tiny 1×1 transparent placeholder used as blurDataURL fallback ─────────────
+const BLUR_PLACEHOLDER =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+/**
+ * Build a Cloudinary (or passthrough) URL with size + quality transforms.
+ * w / h are CSS pixels; we request 2× for retina.
+ */
+function cdnUrl(url: string, w: number, h: number): string {
+  if (!url) return url;
+  if (url.includes('cloudinary.com')) {
+    return url.replace(
+      '/upload/',
+      `/upload/w_${w * 2},h_${h * 2},c_fill,f_auto,q_auto:good/`,
+    );
+  }
+  return url; // Imgix / Bunny / plain URL — leave unchanged
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Agent {
@@ -152,6 +172,36 @@ function StepIndicator({ step }: { step: ModalStep }) {
   );
 }
 
+// ── Agent avatar — next/image inside modal ────────────────────────────────────
+function AgentAvatar({
+  src,
+  alt,
+  size = 54,
+  className = '',
+  style = {},
+}: {
+  src: string;
+  alt: string;
+  size?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(alt)}&size=${size * 2}&background=random`;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src || fallback}
+      alt={alt}
+      width={size}
+      height={size}
+      loading="lazy"
+      className={`object-cover rounded-full flex-shrink-0 ${className}`}
+      style={{ width: size, height: size, ...style }}
+      onError={(e) => { (e.target as HTMLImageElement).src = fallback; }}
+    />
+  );
+}
+
 // ── Agent Selection Step ──────────────────────────────────────────────────────
 function AgentSelectStep({
   selected, setSelected, onNext, onClose, propertyTitle,
@@ -162,10 +212,10 @@ function AgentSelectStep({
   onClose: () => void;
   propertyTitle: string;
 }) {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [agents,     setAgents]     = useState<Agent[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [fetchError, setFetchError] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search,     setSearch]     = useState('');
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -185,7 +235,7 @@ function AgentSelectStep({
 
   const filtered = agents.filter(a =>
     a.name.toLowerCase().includes(search.toLowerCase()) ||
-    (a.specialization ?? '').toLowerCase().includes(search.toLowerCase())
+    (a.specialization ?? '').toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -208,8 +258,10 @@ function AgentSelectStep({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: 12, padding: '9px 14px' }}>
           <Search size={15} color="#9ca3af" />
           <input
-            type="text" placeholder="Search by name or specialization..."
-            value={search} onChange={e => setSearch(e.target.value)}
+            type="text"
+            placeholder="Search by name or specialization..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: '#111827', width: '100%' }}
           />
         </div>
@@ -228,7 +280,9 @@ function AgentSelectStep({
             <p style={{ fontSize: 12, color: '#9ca3af' }}>Please check your connection and try again.</p>
           </div>
         ) : filtered.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#9ca3af', padding: '40px 0', fontSize: 14 }}>No agents found for "{search}"</p>
+          <p style={{ textAlign: 'center', color: '#9ca3af', padding: '40px 0', fontSize: 14 }}>
+            No agents found for "{search}"
+          </p>
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
             {filtered.map(agent => {
@@ -247,10 +301,19 @@ function AgentSelectStep({
                   }}
                 >
                   <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <img src={agent.avatar ?? 'https://via.placeholder.com/52'} alt={agent.name}
-                      style={{ width: 54, height: 54, borderRadius: '50%', objectFit: 'cover', border: isSel ? '2.5px solid #c0392b' : '2px solid #e5e7eb' }} />
+                    <AgentAvatar
+                      src={agent.avatar ?? ''}
+                      alt={agent.name}
+                      size={54}
+                      style={{ border: isSel ? '2.5px solid #c0392b' : '2px solid #e5e7eb' }}
+                    />
                     {isSel && (
-                      <div style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, background: '#c0392b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>
+                      <div style={{
+                        position: 'absolute', bottom: -2, right: -2,
+                        width: 20, height: 20, background: '#c0392b', borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: '2px solid #fff',
+                      }}>
                         <CheckCircle2 size={12} color="#fff" />
                       </div>
                     )}
@@ -259,7 +322,9 @@ function AgentSelectStep({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                       <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: 0 }}>{agent.name}</p>
                       {agent.specialization && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#c0392b', background: '#fff0ee', padding: '2px 9px', borderRadius: 20, flexShrink: 0 }}>{agent.specialization}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#c0392b', background: '#fff0ee', padding: '2px 9px', borderRadius: 20, flexShrink: 0 }}>
+                          {agent.specialization}
+                        </span>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' as const }}>
@@ -270,7 +335,9 @@ function AgentSelectStep({
                         <span style={{ fontSize: 12, color: '#6b7280' }}>{agent.listings} listings</span>
                       )}
                     </div>
-                    {agent.phone && <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0' }}>{agent.phone}</p>}
+                    {agent.phone && (
+                      <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 0' }}>{agent.phone}</p>
+                    )}
                   </div>
                 </div>
               );
@@ -289,7 +356,7 @@ function AgentSelectStep({
   );
 }
 
-// ── Validation rules ──────────────────────────────────────────────────────────
+// ── Validation ────────────────────────────────────────────────────────────────
 type ValidatableField = 'name' | 'phone' | 'email' | 'message' | 'viewingDate';
 
 const VALIDATORS: Record<ValidatableField, (v: string) => string | null> = {
@@ -354,6 +421,7 @@ interface PropertySnapshot {
   id: number;
   title: string;
   image: string;
+  blurHash?: string;
   price: string;
   address: string;
   city: string;
@@ -415,10 +483,10 @@ function LeadFormStep({
   const handleSubmit = () => { if (validate()) onSubmit(); };
 
   const contactOptions: { value: LeadForm['preferredContact']; label: string; icon: React.ReactNode }[] = [
-    { value: 'sms',     label: 'SMS',   icon: <MessageSquare size={20} /> },
-    { value: 'viber',   label: 'Viber', icon: <Phone size={20} /> },
-    { value: 'email',   label: 'Email', icon: <Mail size={20} /> },
-    { value: 'phone',   label: 'Call',  icon: <Phone size={20} /> },
+    { value: 'sms',   label: 'SMS',   icon: <MessageSquare size={20} /> },
+    { value: 'viber', label: 'Viber', icon: <Phone size={20} /> },
+    { value: 'email', label: 'Email', icon: <Mail size={20} /> },
+    { value: 'phone', label: 'Call',  icon: <Phone size={20} /> },
   ];
 
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -426,8 +494,10 @@ function LeadFormStep({
   const maxDate = new Date(); maxDate.setMonth(maxDate.getMonth() + 6);
   const maxDateStr = maxDate.toISOString().split('T')[0];
   const phoneDigits = form.phone.replace(/\D/g, '').length;
-
   const hasLockedFields = lockedFields && (lockedFields.name || lockedFields.phone || lockedFields.email);
+
+  // Thumbnail for the property snapshot strip — 110×90 crop
+  const snapThumb = cdnUrl(property.image, 110, 90);
 
   return (
     <>
@@ -440,10 +510,22 @@ function LeadFormStep({
       </div>
 
       <div style={{ padding: '14px 28px 0', flexShrink: 0 }}>
+        {/* Property snapshot */}
         <div style={{ border: '1.5px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', display: 'flex', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <div style={{ width: 110, flexShrink: 0, position: 'relative' }}>
-            <img src={property.image} alt={property.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(192,57,43,0.9)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6, letterSpacing: '0.04em' }}>INQUIRING</div>
+          <div style={{ width: 110, flexShrink: 0, position: 'relative', minHeight: 90 }}>
+            <Image
+              src={snapThumb || '/placeholder-property.jpg'}
+              alt={property.title}
+              fill
+              sizes="110px"
+              loading="lazy"
+              placeholder="blur"
+              blurDataURL={property.blurHash ?? BLUR_PLACEHOLDER}
+              className="object-cover"
+            />
+            <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(192,57,43,0.9)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 6, letterSpacing: '0.04em', zIndex: 1 }}>
+              INQUIRING
+            </div>
           </div>
           <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
             <p style={{ fontSize: 14, fontWeight: 800, color: '#111827', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{property.title}</p>
@@ -456,8 +538,15 @@ function LeadFormStep({
             </div>
           </div>
         </div>
+
+        {/* Agent strip */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff8f8', border: '1.5px solid #fde8e8', borderRadius: 12, marginBottom: 14 }}>
-          <img src={agent.avatar ?? 'https://via.placeholder.com/36'} alt={agent.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '2px solid #c0392b', flexShrink: 0 }} />
+          <AgentAvatar
+            src={agent.avatar ?? ''}
+            alt={agent.name}
+            size={36}
+            style={{ border: '2px solid #c0392b' }}
+          />
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0 }}>Contacting {agent.name}</p>
             <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{agent.specialization ?? 'Real Estate Agent'} · {agent.experience_years ?? '—'} yrs exp</p>
@@ -556,7 +645,19 @@ function LeadFormStep({
           <label style={s.label}>Preferred Contact Method</label>
           <div style={{ display: 'flex', gap: 8 }}>
             {contactOptions.map(opt => (
-              <button key={opt.value} onClick={() => update('preferredContact', opt.value)} style={{ flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer', border: form.preferredContact === opt.value ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: form.preferredContact === opt.value ? '#fff5f5' : '#fafafa', fontSize: 12, fontWeight: form.preferredContact === opt.value ? 700 : 500, color: form.preferredContact === opt.value ? '#c0392b' : '#6b7280', transition: 'all 0.15s', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5 }}>
+              <button
+                key={opt.value}
+                onClick={() => update('preferredContact', opt.value)}
+                style={{
+                  flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+                  border: form.preferredContact === opt.value ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
+                  background: form.preferredContact === opt.value ? '#fff5f5' : '#fafafa',
+                  fontSize: 12, fontWeight: form.preferredContact === opt.value ? 700 : 500,
+                  color: form.preferredContact === opt.value ? '#c0392b' : '#6b7280',
+                  transition: 'all 0.15s',
+                  display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 5,
+                }}
+              >
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{opt.icon}</span>
                 {opt.label}
               </button>
@@ -577,7 +678,15 @@ function LeadFormStep({
             <label style={{ ...s.label, marginBottom: 0 }}><MessageSquare size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Message to Agent <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
             <span style={{ fontSize: 11, color: form.message.length > 450 ? '#ef4444' : '#9ca3af' }}>{form.message.length}/500</span>
           </div>
-          <textarea style={{ ...s.input(!!errors.message), resize: 'vertical' as const, minHeight: 88, paddingTop: 11 }} placeholder="Hi, I'm interested in this property. Can we schedule a viewing?" value={form.message} onChange={e => update('message', e.target.value)} onBlur={() => touch('message')} rows={3} maxLength={500} />
+          <textarea
+            style={{ ...s.input(!!errors.message), resize: 'vertical' as const, minHeight: 88, paddingTop: 11 }}
+            placeholder="Hi, I'm interested in this property. Can we schedule a viewing?"
+            value={form.message}
+            onChange={e => update('message', e.target.value)}
+            onBlur={() => touch('message')}
+            rows={3}
+            maxLength={500}
+          />
         </FieldWrapper>
 
         <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.6 }}>🔒 Your details are shared only with your selected agent and will not be used for marketing without consent.</p>
@@ -588,7 +697,9 @@ function LeadFormStep({
           <button style={s.secondaryBtn} onClick={onBack} disabled={submitting}>← Back</button>
         )}
         <button style={s.primaryBtn(submitting)} onClick={handleSubmit} disabled={submitting}>
-          {submitting ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Sending…</> : <>Send Inquiry <ArrowRight size={16} /></>}
+          {submitting
+            ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Sending…</>
+            : <>Send Inquiry <ArrowRight size={16} /></>}
         </button>
       </div>
     </>
@@ -596,7 +707,7 @@ function LeadFormStep({
 }
 
 // ── Success Step ──────────────────────────────────────────────────────────────
-function SuccessStep({ agent, form, onClose, property }: { agent: Agent; form: LeadForm; onClose: () => void; property: PropertySnapshot }) {
+function SuccessStep({ agent, form, onClose }: { agent: Agent; form: LeadForm; onClose: () => void }) {
   return (
     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 28px', textAlign: 'center' }}>
       <div style={{ width: 68, height: 68, background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 8px 24px rgba(16,185,129,0.2)' }}>
@@ -604,7 +715,8 @@ function SuccessStep({ agent, form, onClose, property }: { agent: Agent; form: L
       </div>
       <h3 style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Inquiry Sent! 🎉</h3>
       <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 320, lineHeight: 1.7, marginBottom: 20 }}>
-        <strong style={{ color: '#111827' }}>{agent.name}</strong> has received your inquiry and will contact you via <strong style={{ color: '#111827' }}>{form.preferredContact}</strong> within 24 hours.
+        <strong style={{ color: '#111827' }}>{agent.name}</strong> has received your inquiry and will contact you via{' '}
+        <strong style={{ color: '#111827' }}>{form.preferredContact}</strong> within 24 hours.
       </p>
       <button onClick={onClose} style={{ ...s.primaryBtn(false), width: '100%', flex: 'none' as any }}>Done</button>
     </div>
@@ -706,7 +818,7 @@ function ContactModal({ onClose, property, listedAgent }: {
           />
         )}
         {step === 'success' && selectedAgent && (
-          <SuccessStep agent={selectedAgent} form={form} onClose={onClose} property={property} />
+          <SuccessStep agent={selectedAgent} form={form} onClose={onClose} />
         )}
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -724,10 +836,10 @@ interface TourForm {
 type TourStep = 'pick-slot' | 'details' | 'submitting' | 'success';
 
 const TIME_SLOTS = [
-  { label: '9:00 AM',  value: '09:00', period: 'morning' },
-  { label: '10:00 AM', value: '10:00', period: 'morning' },
-  { label: '11:00 AM', value: '11:00', period: 'morning' },
-  { label: '12:00 NN', value: '12:00', period: 'morning' },
+  { label: '9:00 AM',  value: '09:00', period: 'morning'   },
+  { label: '10:00 AM', value: '10:00', period: 'morning'   },
+  { label: '11:00 AM', value: '11:00', period: 'morning'   },
+  { label: '12:00 NN', value: '12:00', period: 'morning'   },
   { label: '1:00 PM',  value: '13:00', period: 'afternoon' },
   { label: '2:00 PM',  value: '14:00', period: 'afternoon' },
   { label: '3:00 PM',  value: '15:00', period: 'afternoon' },
@@ -879,6 +991,9 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
 
   const hasLockedFields = isLocked('name') || isLocked('phone') || isLocked('email');
 
+  // Thumbnail for tour modal header strip
+  const tourThumb = cdnUrl(property.image, 44, 44);
+
   return (
     <div style={s.overlay} onClick={onClose}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
@@ -887,29 +1002,56 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
         {step === 'pick-slot' && (
           <>
             <div style={s.header}>
-              <div><h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Schedule a Tour</h2><p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>Pick a date, time & tour type</p></div>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Schedule a Tour</h2>
+                <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>Pick a date, time & tour type</p>
+              </div>
               <button style={s.closeBtn} onClick={onClose}><X size={18} color="#6b7280" /></button>
             </div>
+
             <div style={{ padding: '12px 28px', background: '#fff8f8', borderBottom: '1px solid #fde8e8', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src={property.image} alt={property.title} style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'cover', border: '1.5px solid #fde8e8', flexShrink: 0 }} />
+              {/* Tiny property thumbnail */}
+              <div style={{ position: 'relative', width: 44, height: 44, borderRadius: 10, overflow: 'hidden', border: '1.5px solid #fde8e8', flexShrink: 0 }}>
+                <Image
+                  src={tourThumb || '/placeholder-property.jpg'}
+                  alt={property.title}
+                  fill
+                  sizes="44px"
+                  loading="lazy"
+                  placeholder="blur"
+                  blurDataURL={property.blurHash ?? BLUR_PLACEHOLDER}
+                  className="object-cover"
+                />
+              </div>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{property.title}</p>
                 <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>📍 {property.address}, {property.city}</p>
               </div>
               <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 800, color: '#c0392b', flexShrink: 0 }}>{property.price}</span>
             </div>
+
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
               {/* Tour Type */}
               <div style={{ marginBottom: 22 }}>
                 <label style={s.label}>Tour Type</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   {([
-                    { value: 'in-person', label: 'In-Person Visit', sub: 'Visit the actual property',   icon: <Home  size={22} />, badge: 'Recommended',  badgeColor: '#16a34a', badgeBg: '#dcfce7' },
-                    { value: 'video',     label: 'Video Tour',       sub: 'Viber / Messenger call',     icon: <Video size={22} />, badge: 'Great for OFWs', badgeColor: '#2563eb', badgeBg: '#dbeafe' },
+                    { value: 'in-person', label: 'In-Person Visit', sub: 'Visit the actual property',  icon: <Home  size={22} />, badge: 'Recommended',    badgeColor: '#16a34a', badgeBg: '#dcfce7' },
+                    { value: 'video',     label: 'Video Tour',      sub: 'Viber / Messenger call',     icon: <Video size={22} />, badge: 'Great for OFWs', badgeColor: '#2563eb', badgeBg: '#dbeafe' },
                   ] as const).map(opt => {
                     const sel = form.tourType === opt.value;
                     return (
-                      <button key={opt.value} onClick={() => updateForm('tourType', opt.value)} style={{ padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left' as const, border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : '#fafafa', transition: 'all 0.15s', boxShadow: sel ? '0 4px 14px rgba(192,57,43,0.1)' : 'none' }}>
+                      <button
+                        key={opt.value}
+                        onClick={() => updateForm('tourType', opt.value)}
+                        style={{
+                          padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left' as const,
+                          border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
+                          background: sel ? '#fff5f5' : '#fafafa',
+                          transition: 'all 0.15s',
+                          boxShadow: sel ? '0 4px 14px rgba(192,57,43,0.1)' : 'none',
+                        }}
+                      >
                         <div style={{ color: sel ? '#c0392b' : '#6b7280', marginBottom: 8 }}>{opt.icon}</div>
                         <p style={{ fontSize: 14, fontWeight: 700, color: sel ? '#c0392b' : '#111827', margin: '0 0 2px' }}>{opt.label}</p>
                         <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{opt.sub}</p>
@@ -919,6 +1061,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                   })}
                 </div>
               </div>
+
               {/* Date picker */}
               <div style={{ marginBottom: 22 }}>
                 <label style={s.label}><Calendar size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Select Date <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>(Sundays unavailable)</span></label>
@@ -926,7 +1069,18 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                   {dates.map(d => {
                     const sel = form.date === d.value;
                     return (
-                      <button key={d.value} onClick={() => updateForm('date', d.value)} style={{ flexShrink: 0, width: 62, paddingTop: 14, paddingBottom: 10, paddingLeft: 6, paddingRight: 6, borderRadius: 12, cursor: 'pointer', border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : d.isPopular ? '#fffbeb' : '#fafafa', textAlign: 'center' as const, transition: 'all 0.15s', position: 'relative' as const, boxShadow: sel ? '0 4px 12px rgba(192,57,43,0.12)' : 'none' }}>
+                      <button
+                        key={d.value}
+                        onClick={() => updateForm('date', d.value)}
+                        style={{
+                          flexShrink: 0, width: 62, paddingTop: 14, paddingBottom: 10, paddingLeft: 6, paddingRight: 6,
+                          borderRadius: 12, cursor: 'pointer', textAlign: 'center' as const,
+                          border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
+                          background: sel ? '#fff5f5' : d.isPopular ? '#fffbeb' : '#fafafa',
+                          transition: 'all 0.15s', position: 'relative' as const,
+                          boxShadow: sel ? '0 4px 12px rgba(192,57,43,0.12)' : 'none',
+                        }}
+                      >
                         {d.isPopular && <span style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color: '#fff', background: '#f59e0b', padding: '2px 7px', borderRadius: 20, whiteSpace: 'nowrap' as const }}>🔥 Popular</span>}
                         <p style={{ fontSize: 11, fontWeight: 600, color: sel ? '#c0392b' : '#9ca3af', margin: '0 0 2px' }}>{d.day}</p>
                         <p style={{ fontSize: 18, fontWeight: 800, color: sel ? '#c0392b' : '#111827', margin: '0 0 1px' }}>{d.label.split(' ')[1]}</p>
@@ -936,6 +1090,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                   })}
                 </div>
               </div>
+
               {/* Time slots */}
               {form.date && (
                 <div style={{ marginBottom: 8 }}>
@@ -946,7 +1101,22 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
                         {TIME_SLOTS.filter(t => t.period === period).map(t => {
                           const sel = form.time === t.value;
-                          return <button key={t.value} onClick={() => updateForm('time', t.value)} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: sel ? 700 : 500, border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : '#fafafa', color: sel ? '#c0392b' : '#374151', transition: 'all 0.15s' }}>{t.label}</button>;
+                          return (
+                            <button
+                              key={t.value}
+                              onClick={() => updateForm('time', t.value)}
+                              style={{
+                                padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                                fontWeight: sel ? 700 : 500,
+                                border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
+                                background: sel ? '#fff5f5' : '#fafafa',
+                                color: sel ? '#c0392b' : '#374151',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              {t.label}
+                            </button>
+                          );
                         })}
                       </div>
                     </div>
@@ -954,9 +1124,12 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 </div>
               )}
             </div>
+
             <div style={{ padding: '18px 28px', borderTop: '1px solid #f0f0f0', flexShrink: 0, display: 'flex', gap: 10 }}>
               <button style={s.secondaryBtn} onClick={onClose}>Cancel</button>
-              <button style={s.primaryBtn(!canProceedSlot)} disabled={!canProceedSlot} onClick={() => setStep('details')}>Continue <ArrowRight size={16} /></button>
+              <button style={s.primaryBtn(!canProceedSlot)} disabled={!canProceedSlot} onClick={() => setStep('details')}>
+                Continue <ArrowRight size={16} />
+              </button>
             </div>
           </>
         )}
@@ -967,7 +1140,9 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             <div style={s.header}>
               <div>
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Your Details</h2>
-                <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{form.tourType === 'video' ? '📹 Video Tour' : '🏠 In-Person Visit'} · {selectedDate?.label} · {selectedTime?.label}</p>
+                <p style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+                  {form.tourType === 'video' ? '📹 Video Tour' : '🏠 In-Person Visit'} · {selectedDate?.label} · {selectedTime?.label}
+                </p>
               </div>
               <button style={s.closeBtn} onClick={onClose}><X size={18} color="#6b7280" /></button>
             </div>
@@ -983,10 +1158,17 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 {form.tourType === 'video' ? <Video size={18} color="#16a34a" /> : <Home size={18} color="#16a34a" />}
               </div>
               <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#15803d', margin: 0 }}>{form.tourType === 'video' ? 'Video Tour' : 'In-Person Visit'} — {selectedDate?.day}, {selectedDate?.label} at {selectedTime?.label}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#15803d', margin: 0 }}>
+                  {form.tourType === 'video' ? 'Video Tour' : 'In-Person Visit'} — {selectedDate?.day}, {selectedDate?.label} at {selectedTime?.label}
+                </p>
                 <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>{property.title}</p>
               </div>
-              <button onClick={() => setStep('pick-slot')} style={{ marginLeft: 'auto', fontSize: 11, color: '#c0392b', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Change</button>
+              <button
+                onClick={() => setStep('pick-slot')}
+                style={{ marginLeft: 'auto', fontSize: 11, color: '#c0392b', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+              >
+                Change
+              </button>
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
@@ -1052,12 +1234,27 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 <div style={{ display: 'flex', gap: 8 }}>
                   {tourContactOptions.map(opt => {
                     const sel = form.preferredContact === opt.value;
-                    return <button key={opt.value} onClick={() => updateForm('preferredContact', opt.value)} style={{ flex: 1, padding: '10px 6px', borderRadius: 10, cursor: 'pointer', border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : '#fafafa', fontSize: 12, fontWeight: sel ? 700 : 500, color: sel ? '#c0392b' : '#6b7280', transition: 'all 0.15s' }}>{opt.label}</button>;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => updateForm('preferredContact', opt.value)}
+                        style={{
+                          flex: 1, padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
+                          border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
+                          background: sel ? '#fff5f5' : '#fafafa',
+                          fontSize: 12, fontWeight: sel ? 700 : 500,
+                          color: sel ? '#c0392b' : '#6b7280',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
                   })}
                 </div>
               </div>
 
-              {/* Email — only shown when preferredContact === email */}
+              {/* Email — only when preferredContact === email */}
               {form.preferredContact === 'email' && (
                 <div style={{ marginBottom: 16 }}>
                   <label style={s.label}>
@@ -1090,7 +1287,9 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             <div style={{ padding: '18px 28px', borderTop: '1px solid #f0f0f0', flexShrink: 0, display: 'flex', gap: 10 }}>
               <button style={s.secondaryBtn} onClick={() => setStep('pick-slot')} disabled={step === 'submitting'}>← Back</button>
               <button style={s.primaryBtn(step === 'submitting')} onClick={handleSubmit} disabled={step === 'submitting'}>
-                {step === 'submitting' ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Booking…</> : <>Confirm Tour <CheckCircle2 size={16} /></>}
+                {step === 'submitting'
+                  ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Booking…</>
+                  : <>Confirm Tour <CheckCircle2 size={16} /></>}
               </button>
             </div>
           </>
@@ -1099,12 +1298,21 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
         {/* Success step */}
         {step === 'success' && (
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 28px', textAlign: 'center' }}>
-            <div style={{ width: 68, height: 68, background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 8px 24px rgba(16,185,129,0.2)' }}><CheckCircle2 size={34} color="#059669" /></div>
+            <div style={{ width: 68, height: 68, background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 8px 24px rgba(16,185,129,0.2)' }}>
+              <CheckCircle2 size={34} color="#059669" />
+            </div>
             <h3 style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 6 }}>Tour Booked! 🎉</h3>
             <p style={{ fontSize: 14, color: '#6b7280', maxWidth: 320, lineHeight: 1.7, marginBottom: 20 }}>
-              Your {form.tourType === 'video' ? 'video tour' : 'in-person visit'} for <strong style={{ color: '#111827' }}>{selectedDate?.day}, {selectedDate?.label} at {selectedTime?.label}</strong> has been submitted. We'll confirm via <strong style={{ color: '#111827' }}>{form.preferredContact.toUpperCase()}</strong>.
+              Your {form.tourType === 'video' ? 'video tour' : 'in-person visit'} for{' '}
+              <strong style={{ color: '#111827' }}>{selectedDate?.day}, {selectedDate?.label} at {selectedTime?.label}</strong>{' '}
+              has been submitted. We'll confirm via <strong style={{ color: '#111827' }}>{form.preferredContact.toUpperCase()}</strong>.
             </p>
-            <a href={gcalLink} target="_blank" rel="noopener noreferrer" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', border: '1.5px solid #e5e7eb', borderRadius: 12, marginBottom: 10, background: '#fff', fontSize: 14, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
+            <a
+              href={gcalLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', border: '1.5px solid #e5e7eb', borderRadius: 12, marginBottom: 10, background: '#fff', fontSize: 14, fontWeight: 600, color: '#374151', textDecoration: 'none' }}
+            >
               📅 Add to Google Calendar
             </a>
             <button onClick={onClose} style={{ ...s.primaryBtn(false), width: '100%', flex: 'none' as any }}>Done</button>
@@ -1119,13 +1327,13 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PropertyDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [property,          setProperty]          = useState<Property | null>(null);
-  const [loading,           setLoading]           = useState(true);
-  const [imageIndex,        setImageIndex]        = useState(0);
-  const [lightboxOpen,      setLightboxOpen]      = useState(false);
-  const [showContactModal,  setShowContactModal]  = useState(false);
-  const [showTourModal,     setShowTourModal]     = useState(false);
-  const [shareCopied,       setShareCopied]       = useState(false);
+  const [property,         setProperty]         = useState<Property | null>(null);
+  const [loading,          setLoading]          = useState(true);
+  const [imageIndex,       setImageIndex]       = useState(0);
+  const [lightboxOpen,     setLightboxOpen]     = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showTourModal,    setShowTourModal]    = useState(false);
+  const [shareCopied,      setShareCopied]      = useState(false);
   const { isFavorited, toggleFavorite } = useFavorites();
 
   useEffect(() => {
@@ -1143,6 +1351,19 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
     fetchProperty();
   }, [id]);
 
+  // Keyboard navigation for lightbox
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!lightboxOpen) return;
+    if (e.key === 'ArrowRight') setImageIndex(prev => (prev + 1) % images.length);
+    if (e.key === 'ArrowLeft')  setImageIndex(prev => (prev - 1 + images.length) % images.length);
+    if (e.key === 'Escape')     setLightboxOpen(false);
+  }, [lightboxOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -1156,12 +1377,15 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center glass rounded-xl p-12">
           <p className="text-lg text-muted-foreground mb-4">Property not found</p>
-          <Link href="/properties"><Button className="bg-primary hover:bg-primary/90">Back to Properties</Button></Link>
+          <Link href="/properties">
+            <Button className="bg-primary hover:bg-primary/90">Back to Properties</Button>
+          </Link>
         </div>
       </div>
     );
   }
 
+  // ── Normalise images ──────────────────────────────────────────────────────
   const rawImages: any[] = (property as any).images ?? [];
   const images: string[] = rawImages
     .map((img: any) => (typeof img === 'string' ? img : img?.url ?? ''))
@@ -1169,6 +1393,8 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   if (images.length === 0 && (property as any).thumbnail) {
     images.push((property as any).thumbnail);
   }
+
+  const blurHash: string = (property as any).blur_hash ?? '';
 
   const currentImage = images[imageIndex] ?? '/placeholder-property.jpg';
   const nextImage    = () => setImageIndex(prev => (prev + 1) % images.length);
@@ -1183,7 +1409,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   const favorited   = isFavorited(propertyId);
   const areaDisplay = (property as any).area ? String((property as any).area) : '—';
 
-  // ── Share handler ──────────────────────────────────────────────────────────
   const handleShare = async () => {
     const shareData = {
       title: property.title,
@@ -1203,6 +1428,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
     id:        propertyId,
     title:     property.title,
     image:     images[0] ?? '/placeholder-property.jpg',
+    blurHash:  blurHash || undefined,
     price:     priceDisplay,
     address:   property.address,
     city:      property.city,
@@ -1212,8 +1438,15 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
     agentId:   (property as any).agent?.id ?? null,
   };
 
+  // ── CDN URLs for main gallery ─────────────────────────────────────────────
+  // Hero image: full width up to ~800px tall — request 1200×800
+  const heroThumbUrl = cdnUrl(currentImage, 1200, 800);
+  // Thumbnail strip: 80×80 display → request 160×160
+  const thumbUrls = images.map(img => cdnUrl(img, 80, 80));
+
   return (
     <div className="w-full">
+      {/* ── Modals — only mounted when open ── */}
       {showContactModal && (
         <ContactModal
           onClose={() => setShowContactModal(false)}
@@ -1223,6 +1456,84 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
       )}
       {showTourModal && (
         <TourModal onClose={() => setShowTourModal(false)} property={propertySnapshot} />
+      )}
+
+      {/* ── Lightbox — only mounted when open ── */}
+      {lightboxOpen && (
+        <div
+          className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {images.length > 1 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium z-10">
+              {imageIndex + 1} / {images.length}
+            </div>
+          )}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); prevImage(); }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); nextImage(); }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          {/* Lightbox main image — full resolution, priority since it's visible immediately */}
+          <div
+            className="relative max-w-[90vw] max-h-[80vh] w-full"
+            style={{ aspectRatio: '16/9' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <Image
+              src={currentImage}
+              alt={property.title}
+              fill
+              sizes="90vw"
+              priority
+              className="object-contain rounded-lg shadow-2xl"
+            />
+          </div>
+
+          {/* Lightbox thumbnail strip */}
+          {images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto max-w-[80vw] px-2">
+              {images.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={e => { e.stopPropagation(); setImageIndex(idx); }}
+                  className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 relative transition-all ${
+                    idx === imageIndex ? 'border-white' : 'border-white/20 opacity-40 hover:opacity-80'
+                  }`}
+                >
+                  <Image
+                    src={thumbUrls[idx]}
+                    alt=""
+                    fill
+                    sizes="56px"
+                    loading="lazy"
+                    placeholder="blur"
+                    blurDataURL={blurHash || BLUR_PLACEHOLDER}
+                    className="object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Breadcrumb */}
@@ -1237,11 +1548,27 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Main Content */}
+          {/* ── Main Content ── */}
           <div className="lg:col-span-2">
-            <div className="glass rounded-xl overflow-hidden mb-4 aspect-video relative group cursor-zoom-in"
-              onClick={() => setLightboxOpen(true)}>
-              <img src={currentImage} alt={`${property.title} - ${imageIndex + 1}`} className="w-full h-full object-cover" />
+
+            {/* ── Hero image ── */}
+            <div
+              className="glass rounded-xl overflow-hidden mb-4 aspect-video relative group cursor-zoom-in"
+              onClick={() => setLightboxOpen(true)}
+            >
+              {/* Priority on the first (visible) image — no lazy, prefetch immediately */}
+              <Image
+                src={heroThumbUrl}
+                alt={`${property.title} - ${imageIndex + 1}`}
+                fill
+                sizes="(max-width: 1024px) 100vw, 66vw"
+                priority={imageIndex === 0}
+                loading={imageIndex === 0 ? 'eager' : 'lazy'}
+                placeholder="blur"
+                blurDataURL={blurHash || BLUR_PLACEHOLDER}
+                className="object-cover"
+              />
+
               {images.length > 1 && (
                 <div className="absolute top-4 right-4 bg-black/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
                   {imageIndex + 1} / {images.length}
@@ -1252,58 +1579,69 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               </div>
               {images.length > 1 && (
                 <>
-                  <button onClick={e => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10"><ChevronLeft className="w-6 h-6 text-foreground" /></button>
-                  <button onClick={e => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10"><ChevronRight className="w-6 h-6 text-foreground" /></button>
+                  <button
+                    onClick={e => { e.stopPropagation(); prevImage(); }}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10"
+                  >
+                    <ChevronLeft className="w-6 h-6 text-foreground" />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); nextImage(); }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10"
+                  >
+                    <ChevronRight className="w-6 h-6 text-foreground" />
+                  </button>
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                     {images.map((_, idx) => (
-                      <button key={idx} onClick={e => { e.stopPropagation(); setImageIndex(idx); }} className={`w-2 h-2 rounded-full transition ${idx === imageIndex ? 'bg-white' : 'bg-white/50'}`} />
+                      <button
+                        key={idx}
+                        onClick={e => { e.stopPropagation(); setImageIndex(idx); }}
+                        className={`w-2 h-2 rounded-full transition ${idx === imageIndex ? 'bg-white' : 'bg-white/50'}`}
+                      />
                     ))}
                   </div>
                 </>
               )}
             </div>
 
+            {/* ── Thumbnail strip ── */}
             {images.length > 1 && (
               <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-                {images.map((img, idx) => (
-                  <button key={idx} onClick={() => setImageIndex(idx)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${idx === imageIndex ? 'border-primary ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}>
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                {images.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setImageIndex(idx)}
+                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative transition-all ${
+                      idx === imageIndex
+                        ? 'border-primary ring-2 ring-primary/20'
+                        : 'border-border opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Image
+                      src={thumbUrls[idx]}
+                      alt=""
+                      fill
+                      sizes="80px"
+                      loading="lazy"            // strip thumbnails are always below-fold
+                      placeholder="blur"
+                      blurDataURL={blurHash || BLUR_PLACEHOLDER}
+                      className="object-cover"
+                    />
                   </button>
                 ))}
               </div>
             )}
 
-            {lightboxOpen && (
-              <div className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center" onClick={() => setLightboxOpen(false)}>
-                <button onClick={() => setLightboxOpen(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"><X className="w-5 h-5" /></button>
-                {images.length > 1 && <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm font-medium z-10">{imageIndex + 1} / {images.length}</div>}
-                {images.length > 1 && (
-                  <>
-                    <button onClick={e => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"><ChevronLeft className="w-6 h-6" /></button>
-                    <button onClick={e => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"><ChevronRight className="w-6 h-6" /></button>
-                  </>
-                )}
-                <img src={currentImage} alt={property.title} className="max-w-[90vw] max-h-[88vh] object-contain rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
-                {images.length > 1 && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto max-w-[80vw] px-2">
-                    {images.map((img, idx) => (
-                      <button key={idx} onClick={e => { e.stopPropagation(); setImageIndex(idx); }} className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${idx === imageIndex ? 'border-white' : 'border-white/20 opacity-40 hover:opacity-80'}`}>
-                        <img src={img} alt="" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
+            {/* ── Property info ── */}
             <div className="glass rounded-xl p-8 mb-8">
               <h1 className="text-3xl sm:text-4xl font-bold mb-4">{property.title}</h1>
               <div className="flex items-start gap-2 text-lg text-muted-foreground mb-6">
                 <MapPin className="w-5 h-5 flex-shrink-0 mt-1" />
                 <div>
                   <p>{property.address}</p>
-                  <p className="text-sm">{property.city}, {(property as any).state} {(property as any).zip_code ?? (property as any).zipCode}</p>
+                  <p className="text-sm">
+                    {property.city}, {(property as any).state} {(property as any).zip_code ?? (property as any).zipCode}
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-4 mb-8 pb-8 border-b border-border">
@@ -1343,7 +1681,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* ── Sidebar ── */}
           <div className="space-y-6">
             <div className="glass rounded-xl p-8 sticky top-24">
               <p className="text-muted-foreground text-sm mb-2">Price</p>
@@ -1374,7 +1712,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                 </Button>
               </div>
 
-              {/* ── FIXED: Share button with working handler ── */}
               <button
                 className="w-full flex items-center justify-center gap-2 p-3 hover:bg-muted rounded-lg transition text-sm font-medium"
                 onClick={handleShare}
@@ -1384,14 +1721,21 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               </button>
             </div>
 
+            {/* ── Agent card ── */}
             {(property as any).agent && (
               <div className="glass rounded-xl p-8">
                 <h3 className="font-bold text-lg mb-4">Listed by</h3>
                 <div className="flex items-start gap-4">
+                  {/* Agent avatar — plain img avoids next/image 400 on localhost */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={(property as any).agent.avatar ?? 'https://via.placeholder.com/64'}
+                    src={(property as any).agent.avatar ?? `https://ui-avatars.com/api/?name=${encodeURIComponent((property as any).agent.name)}&size=128&background=random`}
                     alt={(property as any).agent.name}
-                    className="w-16 h-16 rounded-full object-cover"
+                    width={64}
+                    height={64}
+                    loading="lazy"
+                    className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent((property as any).agent.name)}&size=128&background=random`; }}
                   />
                   <div className="flex-1">
                     <h4 className="font-bold text-foreground">{(property as any).agent.name}</h4>
@@ -1402,21 +1746,14 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                       <p className="text-xs text-muted-foreground mb-4">{(property as any).agent.experience_years} years experience</p>
                     )}
                     <div className="space-y-2">
-
-                      {/* ── FIXED: Phone button — clickable tel: link, centered ── */}
                       {(property as any).agent.phone && (
                         <a href={`tel:${(property as any).agent.phone}`} className="block w-full">
-                          <Button
-                            variant="outline"
-                            className="w-full border-border hover:bg-muted text-sm justify-center"
-                          >
+                          <Button variant="outline" className="w-full border-border hover:bg-muted text-sm justify-center">
                             <Phone className="w-4 h-4 mr-1" />
                             {(property as any).agent.phone}
                           </Button>
                         </a>
                       )}
-
-                      {/* ── Message button ── */}
                       <Button
                         variant="outline"
                         className="w-full border-border hover:bg-muted text-sm justify-center"
@@ -1424,7 +1761,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                       >
                         <Mail className="w-4 h-4 mr-1" />Message
                       </Button>
-
                     </div>
                   </div>
                 </div>
