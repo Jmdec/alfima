@@ -7,7 +7,7 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Home, Users, FileText, Settings,
   MapPin, Wrench, LogOut, ChevronRight, Menu, X,
-  TrendingUp, Calendar, MessageSquare,
+  TrendingUp, Calendar, MessageSquare, MessageCircle,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
     section: 'Overview',
     items: [
       { label: 'Dashboard',  href: '/admin',           icon: LayoutDashboard },
-      { label: 'Analytics',  href: '/admin/analytics', icon: TrendingUp },
+{ label: 'Chat', href: '/admin/chat', icon: MessageCircle },
     ],
   },
   {
@@ -23,13 +23,13 @@ const NAV_ITEMS = [
     items: [
       { label: 'Properties', href: '/admin/properties', icon: Home },
       { label: 'Agents',     href: '/admin/agents',     icon: Users },
-      { label: 'Users',      href: '/admin/users',      icon: Users },
+
     ],
   },
   {
     section: 'Content',
     items: [
-      { label: 'Blog',       href: '/admin/blog',       icon: FileText },
+     
       { label: 'Inquiries',  href: '/admin/inquiries',  icon: MessageSquare },
       { label: 'Tours',      href: '/admin/tours',      icon: Calendar },
     ],

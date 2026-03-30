@@ -15,7 +15,8 @@ interface PropertyCardProps {
 const BLUR_PLACEHOLDER =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-const FALLBACK_IMG = 'https://via.placeholder.com/400x300?text=No+Image';
+const FALLBACK_IMG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e2e8f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='16' fill='%2394a3b8'%3ENo Image%3C/text%3E%3C/svg%3E";
 const API_BASE = (process.env.NEXT_PUBLIC_API_IMG ?? 'http://localhost:8000').replace(/\/$/, '');
 
 /**
@@ -28,7 +29,13 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_IMG ?? 'http://localhost:8000').re
 function toAbsoluteUrl(url: string | null | undefined): string {
   if (!url) return FALLBACK_IMG;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `${API_BASE}/${url.replace(/^\//, '')}`;
+  
+  // Clean up the URL path
+  const cleanPath = url.replace(/^\//, '');
+  const absoluteUrl = `${API_BASE}/${cleanPath}`;
+  
+  console.log("[v0] Image URL:", absoluteUrl);
+  return absoluteUrl;
 }
 
 // ── Price formatter ───────────────────────────────────────────────────────────
@@ -54,9 +61,10 @@ export function PropertyCard({ property, priority = false }: PropertyCardProps) 
   const favorited = isFavorited(property.id);
 
   // Property hero image — always absolute
+  // Use thumbnail first (the one set in admin), fall back to first gallery image
   const rawImageUrl = imageError
     ? FALLBACK_IMG
-    : toAbsoluteUrl(property.images?.[0]?.url ?? property.thumbnail);
+    : toAbsoluteUrl(property.thumbnail ?? property.images?.[0]?.url);
 
   // Agent avatar — always absolute
   const agentAvatarUrl = toAbsoluteUrl(property.agent?.avatar);
@@ -91,7 +99,11 @@ export function PropertyCard({ property, priority = false }: PropertyCardProps) 
             placeholder="blur"
             blurDataURL={BLUR_PLACEHOLDER}
             className="object-cover group-hover:scale-110 transition duration-300"
-            onError={() => setImageError(true)}
+            onError={(error) => {
+              console.log("[v0] Image load failed:", rawImageUrl, error);
+              setImageError(true);
+            }}
+            unoptimized={rawImageUrl.includes('localhost') || rawImageUrl.includes('data:image')}
           />
 
           {/* Listing type badge */}

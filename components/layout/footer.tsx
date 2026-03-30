@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Facebook, Instagram, Linkedin, Phone, Mail, MapPin, Send, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { Phone, Mail, MapPin, Send, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 
 export function Footer() {
   const pathname    = usePathname();
@@ -67,19 +67,6 @@ export function Footer() {
             <p className="text-xs text-white/65 leading-relaxed mb-4">
               Helping Filipinos find their dream homes with integrity and expertise.
             </p>
-            <div className="flex gap-2">
-              {[
-                { icon: <Facebook  className="w-3.5 h-3.5" />, href: '#', label: 'Facebook'  },
-                { icon: <Instagram className="w-3.5 h-3.5" />, href: '#', label: 'Instagram' },
-                { icon: <Linkedin  className="w-3.5 h-3.5" />, href: '#', label: 'LinkedIn'  },
-              ].map(({ icon, href, label }) => (
-                <a key={label} href={href} aria-label={label}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white border border-white/20 hover:border-white/40 transition-all"
-                  style={{ background: 'rgba(0,0,0,0.2)' }}>
-                  {icon}
-                </a>
-              ))}
-            </div>
           </div>
 
           {/* Quick Links */}
@@ -111,19 +98,28 @@ export function Footer() {
             </h4>
             <ul className="space-y-3">
               <li className="flex items-start gap-2.5">
-                <MapPin className="w-3.5 h-3.5 text-red-200 flex-shrink-0 mt-0.5" />
-                <span className="text-xs text-white/70 leading-relaxed">Quezon City, Metro Manila, Philippines</span>
+                <a
+                  href="https://maps.google.com/?q=IBP+Tower+Jade+Drive+Brgy+San+Antonio+Pasig+Philippines"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2.5 hover:text-white transition-colors group"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-red-200 flex-shrink-0 mt-0.5 group-hover:text-white transition-colors" />
+                  <span className="text-xs text-white/70 leading-relaxed group-hover:text-white transition-colors">
+                    10th Floor IBP Tower Jade Drive Brgy San Antonio, Pasig, Philippines
+                  </span>
+                </a>
               </li>
               <li className="flex items-center gap-2.5">
                 <Phone className="w-3.5 h-3.5 text-red-200 flex-shrink-0" />
-                <a href="tel:+639171234567" className="text-xs text-white/70 hover:text-white transition-colors">
-                  +63 917 123 4567
+                <a href="tel:+639171742419" className="text-xs text-white/70 hover:text-white transition-colors">
+                  0917 174 2419
                 </a>
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-3.5 h-3.5 text-red-200 flex-shrink-0" />
-                <a href="mailto:info@alfimarealtyinc.com" className="text-xs text-white/70 hover:text-white transition-colors">
-                  info@alfimarealtyinc.com
+                <a href="mailto:ABMacalincag@alfimarealtyinc.com" className="text-xs text-white/70 hover:text-white transition-colors">
+                  ABMacalincag@alfimarealtyinc.com
                 </a>
               </li>
             </ul>
@@ -186,9 +182,9 @@ export function Footer() {
         <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-[11px] text-white/55">
           <p>© {currentYear} Alfima Realty Inc. All rights reserved.</p>
           <div className="flex gap-5">
-            {['Terms', 'Privacy', 'Cookies'].map(item => (
-              <a key={item} href="#" className="hover:text-white transition-colors">{item}</a>
-            ))}
+            <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+            <Link href="/cookies" className="hover:text-white transition-colors">Cookies</Link>
           </div>
         </div>
       </div>

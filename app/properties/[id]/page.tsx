@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState, use, useCallback } from 'react';
+import { useEffect, useState, use, useCallback, lazy, Suspense } from 'react';
 import { Property } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useFavorites, useAuth } from '@/lib/store';
@@ -10,7 +10,11 @@ import {
   Heart, MapPin, Phone, Mail, Share2, ChevronLeft, ChevronRight,
   X, Search, CheckCircle2, User, MessageSquare, Calendar,
   ArrowRight, Loader2, Building2, Clock, Video, Home, Lock,
+  Rotate3D,    // ← 360° tour icon
 } from 'lucide-react';
+
+// ── Lazy-load the heavy Three.js modal ───────────────────────────────────────
+const VirtualTourModal = lazy(() => import('@/components/VirtualTourModal'));
 
 // ── Tiny 1×1 transparent placeholder used as blurDataURL fallback ─────────────
 const BLUR_PLACEHOLDER =
@@ -18,17 +22,27 @@ const BLUR_PLACEHOLDER =
 
 /**
  * Build a Cloudinary (or passthrough) URL with size + quality transforms.
- * w / h are CSS pixels; we request 2× for retina.
  */
 function cdnUrl(url: string, w: number, h: number): string {
-  if (!url) return url;
+  if (!url) return '/placeholder-property.jpg'; // local fallback, no external DNS
+
+  // Rewrite backend localhost URLs through the Next.js rewrite proxy
+  if (url.includes('localhost:8000')) {
+    url = url.replace('http://localhost:8000', '/img-proxy');
+  }
+
+  // Also handle production backend URL if needed
+  if (url.includes('infinitech-api14.site')) {
+    // production URL is fine as-is
+  }
+
   if (url.includes('cloudinary.com')) {
     return url.replace(
       '/upload/',
       `/upload/w_${w * 2},h_${h * 2},c_fill,f_auto,q_auto:good/`,
     );
   }
-  return url; // Imgix / Bunny / plain URL — leave unchanged
+  return url;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -172,19 +186,11 @@ function StepIndicator({ step }: { step: ModalStep }) {
   );
 }
 
-// ── Agent avatar — next/image inside modal ────────────────────────────────────
+// ── Agent avatar ──────────────────────────────────────────────────────────────
 function AgentAvatar({
-  src,
-  alt,
-  size = 54,
-  className = '',
-  style = {},
+  src, alt, size = 54, className = '', style = {},
 }: {
-  src: string;
-  alt: string;
-  size?: number;
-  className?: string;
-  style?: React.CSSProperties;
+  src: string; alt: string; size?: number; className?: string; style?: React.CSSProperties;
 }) {
   const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(alt)}&size=${size * 2}&background=random`;
   return (
@@ -495,8 +501,6 @@ function LeadFormStep({
   const maxDateStr = maxDate.toISOString().split('T')[0];
   const phoneDigits = form.phone.replace(/\D/g, '').length;
   const hasLockedFields = lockedFields && (lockedFields.name || lockedFields.phone || lockedFields.email);
-
-  // Thumbnail for the property snapshot strip — 110×90 crop
   const snapThumb = cdnUrl(property.image, 110, 90);
 
   return (
@@ -510,7 +514,6 @@ function LeadFormStep({
       </div>
 
       <div style={{ padding: '14px 28px 0', flexShrink: 0 }}>
-        {/* Property snapshot */}
         <div style={{ border: '1.5px solid #e5e7eb', borderRadius: 16, overflow: 'hidden', display: 'flex', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <div style={{ width: 110, flexShrink: 0, position: 'relative', minHeight: 90 }}>
             <Image
@@ -539,14 +542,8 @@ function LeadFormStep({
           </div>
         </div>
 
-        {/* Agent strip */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff8f8', border: '1.5px solid #fde8e8', borderRadius: 12, marginBottom: 14 }}>
-          <AgentAvatar
-            src={agent.avatar ?? ''}
-            alt={agent.name}
-            size={36}
-            style={{ border: '2px solid #c0392b' }}
-          />
+          <AgentAvatar src={agent.avatar ?? ''} alt={agent.name} size={36} style={{ border: '2px solid #c0392b' }} />
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0 }}>Contacting {agent.name}</p>
             <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{agent.specialization ?? 'Real Estate Agent'} · {agent.experience_years ?? '—'} yrs exp</p>
@@ -557,7 +554,6 @@ function LeadFormStep({
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
         {hasLockedFields && <LoggedInBanner />}
 
-        {/* Name */}
         <FieldWrapper error={errors.name}>
           <label style={s.label}>
             Full Name <span style={{ color: '#ef4444' }}>*</span>
@@ -582,7 +578,6 @@ function LeadFormStep({
           {!errors.name && !isLocked('name') && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>First and last name required</p>}
         </FieldWrapper>
 
-        {/* Phone */}
         <FieldWrapper error={errors.phone}>
           <label style={s.label}>
             Phone Number <span style={{ color: '#ef4444' }}>*</span>
@@ -613,7 +608,6 @@ function LeadFormStep({
           {!errors.phone && !isLocked('phone') && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>PH mobile number — 11 digits (e.g. 09171234567)</p>}
         </FieldWrapper>
 
-        {/* Email */}
         <FieldWrapper error={errors.email}>
           <label style={s.label}>
             Email Address{' '}
@@ -640,7 +634,6 @@ function LeadFormStep({
           </div>
         </FieldWrapper>
 
-        {/* Preferred Contact */}
         <div style={s.fieldGroup}>
           <label style={s.label}>Preferred Contact Method</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -665,14 +658,12 @@ function LeadFormStep({
           </div>
         </div>
 
-        {/* Viewing Date */}
         <FieldWrapper error={errors.viewingDate}>
           <label style={s.label}><Calendar size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Preferred Viewing Date <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
           <input style={s.input(!!errors.viewingDate)} type="date" min={minDate} max={maxDateStr} value={form.viewingDate} onChange={e => update('viewingDate', e.target.value)} onBlur={() => touch('viewingDate')} />
           {!errors.viewingDate && <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Available slots: tomorrow up to 6 months ahead</p>}
         </FieldWrapper>
 
-        {/* Message */}
         <FieldWrapper error={errors.message}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <label style={{ ...s.label, marginBottom: 0 }}><MessageSquare size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Message to Agent <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
@@ -990,15 +981,12 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
   })() : '#';
 
   const hasLockedFields = isLocked('name') || isLocked('phone') || isLocked('email');
-
-  // Thumbnail for tour modal header strip
   const tourThumb = cdnUrl(property.image, 44, 44);
 
   return (
     <div style={s.overlay} onClick={onClose}>
       <div style={s.modal} onClick={e => e.stopPropagation()}>
 
-        {/* Pick slot step */}
         {step === 'pick-slot' && (
           <>
             <div style={s.header}>
@@ -1010,18 +998,8 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             </div>
 
             <div style={{ padding: '12px 28px', background: '#fff8f8', borderBottom: '1px solid #fde8e8', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* Tiny property thumbnail */}
               <div style={{ position: 'relative', width: 44, height: 44, borderRadius: 10, overflow: 'hidden', border: '1.5px solid #fde8e8', flexShrink: 0 }}>
-                <Image
-                  src={tourThumb || '/placeholder-property.jpg'}
-                  alt={property.title}
-                  fill
-                  sizes="44px"
-                  loading="lazy"
-                  placeholder="blur"
-                  blurDataURL={property.blurHash ?? BLUR_PLACEHOLDER}
-                  className="object-cover"
-                />
+                <Image src={tourThumb || '/placeholder-property.jpg'} alt={property.title} fill sizes="44px" loading="lazy" placeholder="blur" blurDataURL={property.blurHash ?? BLUR_PLACEHOLDER} className="object-cover" />
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{property.title}</p>
@@ -1031,7 +1009,6 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
-              {/* Tour Type */}
               <div style={{ marginBottom: 22 }}>
                 <label style={s.label}>Tour Type</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -1041,17 +1018,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                   ] as const).map(opt => {
                     const sel = form.tourType === opt.value;
                     return (
-                      <button
-                        key={opt.value}
-                        onClick={() => updateForm('tourType', opt.value)}
-                        style={{
-                          padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left' as const,
-                          border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
-                          background: sel ? '#fff5f5' : '#fafafa',
-                          transition: 'all 0.15s',
-                          boxShadow: sel ? '0 4px 14px rgba(192,57,43,0.1)' : 'none',
-                        }}
-                      >
+                      <button key={opt.value} onClick={() => updateForm('tourType', opt.value)} style={{ padding: '14px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'left' as const, border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : '#fafafa', transition: 'all 0.15s', boxShadow: sel ? '0 4px 14px rgba(192,57,43,0.1)' : 'none' }}>
                         <div style={{ color: sel ? '#c0392b' : '#6b7280', marginBottom: 8 }}>{opt.icon}</div>
                         <p style={{ fontSize: 14, fontWeight: 700, color: sel ? '#c0392b' : '#111827', margin: '0 0 2px' }}>{opt.label}</p>
                         <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{opt.sub}</p>
@@ -1062,25 +1029,13 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 </div>
               </div>
 
-              {/* Date picker */}
               <div style={{ marginBottom: 22 }}>
                 <label style={s.label}><Calendar size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Select Date <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>(Sundays unavailable)</span></label>
                 <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, paddingTop: 12 }}>
                   {dates.map(d => {
                     const sel = form.date === d.value;
                     return (
-                      <button
-                        key={d.value}
-                        onClick={() => updateForm('date', d.value)}
-                        style={{
-                          flexShrink: 0, width: 62, paddingTop: 14, paddingBottom: 10, paddingLeft: 6, paddingRight: 6,
-                          borderRadius: 12, cursor: 'pointer', textAlign: 'center' as const,
-                          border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
-                          background: sel ? '#fff5f5' : d.isPopular ? '#fffbeb' : '#fafafa',
-                          transition: 'all 0.15s', position: 'relative' as const,
-                          boxShadow: sel ? '0 4px 12px rgba(192,57,43,0.12)' : 'none',
-                        }}
-                      >
+                      <button key={d.value} onClick={() => updateForm('date', d.value)} style={{ flexShrink: 0, width: 62, paddingTop: 14, paddingBottom: 10, paddingLeft: 6, paddingRight: 6, borderRadius: 12, cursor: 'pointer', textAlign: 'center' as const, border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : d.isPopular ? '#fffbeb' : '#fafafa', transition: 'all 0.15s', position: 'relative' as const, boxShadow: sel ? '0 4px 12px rgba(192,57,43,0.12)' : 'none' }}>
                         {d.isPopular && <span style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', fontSize: 9, fontWeight: 800, color: '#fff', background: '#f59e0b', padding: '2px 7px', borderRadius: 20, whiteSpace: 'nowrap' as const }}>🔥 Popular</span>}
                         <p style={{ fontSize: 11, fontWeight: 600, color: sel ? '#c0392b' : '#9ca3af', margin: '0 0 2px' }}>{d.day}</p>
                         <p style={{ fontSize: 18, fontWeight: 800, color: sel ? '#c0392b' : '#111827', margin: '0 0 1px' }}>{d.label.split(' ')[1]}</p>
@@ -1091,7 +1046,6 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 </div>
               </div>
 
-              {/* Time slots */}
               {form.date && (
                 <div style={{ marginBottom: 8 }}>
                   <label style={s.label}><Clock size={13} style={{ display: 'inline', marginRight: 5, verticalAlign: 'middle' }} />Select Time</label>
@@ -1102,18 +1056,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                         {TIME_SLOTS.filter(t => t.period === period).map(t => {
                           const sel = form.time === t.value;
                           return (
-                            <button
-                              key={t.value}
-                              onClick={() => updateForm('time', t.value)}
-                              style={{
-                                padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13,
-                                fontWeight: sel ? 700 : 500,
-                                border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
-                                background: sel ? '#fff5f5' : '#fafafa',
-                                color: sel ? '#c0392b' : '#374151',
-                                transition: 'all 0.15s',
-                              }}
-                            >
+                            <button key={t.value} onClick={() => updateForm('time', t.value)} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: sel ? 700 : 500, border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : '#fafafa', color: sel ? '#c0392b' : '#374151', transition: 'all 0.15s' }}>
                               {t.label}
                             </button>
                           );
@@ -1134,7 +1077,6 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
           </>
         )}
 
-        {/* Details step */}
         {(step === 'details' || step === 'submitting') && (
           <>
             <div style={s.header}>
@@ -1163,10 +1105,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 </p>
                 <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>{property.title}</p>
               </div>
-              <button
-                onClick={() => setStep('pick-slot')}
-                style={{ marginLeft: 'auto', fontSize: 11, color: '#c0392b', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-              >
+              <button onClick={() => setStep('pick-slot')} style={{ marginLeft: 'auto', fontSize: 11, color: '#c0392b', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                 Change
               </button>
             </div>
@@ -1174,79 +1113,35 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
               {hasLockedFields && <LoggedInBanner />}
 
-              {/* Name */}
               <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>
-                  Full Name <span style={{ color: '#ef4444' }}>*</span>
-                  {isLocked('name') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
-                </label>
+                <label style={s.label}>Full Name <span style={{ color: '#ef4444' }}>*</span>{isLocked('name') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}</label>
                 <div style={{ position: 'relative' }}>
                   <User size={14} color={errors.name ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    style={{ ...(isLocked('name') ? s.readonlyInput : s.input(!!errors.name)), paddingLeft: 34 }}
-                    placeholder="Juan dela Cruz"
-                    value={form.name}
-                    onChange={e => updateForm('name', e.target.value)}
-                    onBlur={() => touch('name')}
-                    readOnly={isLocked('name')}
-                    maxLength={60}
-                  />
-                  {(isLocked('name') || (form.name.trim().length > 1 && !errors.name && touched.name)) && (
-                    <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  )}
+                  <input style={{ ...(isLocked('name') ? s.readonlyInput : s.input(!!errors.name)), paddingLeft: 34 }} placeholder="Juan dela Cruz" value={form.name} onChange={e => updateForm('name', e.target.value)} onBlur={() => touch('name')} readOnly={isLocked('name')} maxLength={60} />
+                  {(isLocked('name') || (form.name.trim().length > 1 && !errors.name && touched.name)) && <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />}
                 </div>
                 {errors.name && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>⚠ {errors.name}</p>}
               </div>
 
-              {/* Phone */}
               <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>
-                  Phone Number <span style={{ color: '#ef4444' }}>*</span>
-                  {isLocked('phone') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
-                </label>
+                <label style={s.label}>Phone Number <span style={{ color: '#ef4444' }}>*</span>{isLocked('phone') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}</label>
                 <div style={{ position: 'relative' }}>
                   <Phone size={14} color={errors.phone ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    style={{ ...(isLocked('phone') ? s.readonlyInput : s.input(!!errors.phone)), paddingLeft: 34, paddingRight: 52 }}
-                    placeholder="09171234567"
-                    value={form.phone}
-                    onChange={e => updateForm('phone', e.target.value)}
-                    onBlur={() => touch('phone')}
-                    readOnly={isLocked('phone')}
-                    type="tel"
-                    maxLength={15}
-                    inputMode="numeric"
-                  />
-                  <span style={{
-                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    fontSize: 11, fontWeight: 600,
-                    color: isLocked('phone') ? '#22c55e' : phoneDigits === 11 ? '#22c55e' : phoneDigits > 11 ? '#ef4444' : '#9ca3af',
-                  }}>
+                  <input style={{ ...(isLocked('phone') ? s.readonlyInput : s.input(!!errors.phone)), paddingLeft: 34, paddingRight: 52 }} placeholder="09171234567" value={form.phone} onChange={e => updateForm('phone', e.target.value)} onBlur={() => touch('phone')} readOnly={isLocked('phone')} type="tel" maxLength={15} inputMode="numeric" />
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, fontWeight: 600, color: isLocked('phone') ? '#22c55e' : phoneDigits === 11 ? '#22c55e' : phoneDigits > 11 ? '#ef4444' : '#9ca3af' }}>
                     {isLocked('phone') ? <CheckCircle2 size={14} color="#22c55e" /> : `${phoneDigits}/11`}
                   </span>
                 </div>
                 {errors.phone && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>⚠ {errors.phone}</p>}
               </div>
 
-              {/* Confirm Tour Via */}
               <div style={{ marginBottom: 16 }}>
                 <label style={s.label}>Confirm Tour Via</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {tourContactOptions.map(opt => {
                     const sel = form.preferredContact === opt.value;
                     return (
-                      <button
-                        key={opt.value}
-                        onClick={() => updateForm('preferredContact', opt.value)}
-                        style={{
-                          flex: 1, padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
-                          border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb',
-                          background: sel ? '#fff5f5' : '#fafafa',
-                          fontSize: 12, fontWeight: sel ? 700 : 500,
-                          color: sel ? '#c0392b' : '#6b7280',
-                          transition: 'all 0.15s',
-                        }}
-                      >
+                      <button key={opt.value} onClick={() => updateForm('preferredContact', opt.value)} style={{ flex: 1, padding: '10px 6px', borderRadius: 10, cursor: 'pointer', border: sel ? '2px solid #c0392b' : '1.5px solid #e5e7eb', background: sel ? '#fff5f5' : '#fafafa', fontSize: 12, fontWeight: sel ? 700 : 500, color: sel ? '#c0392b' : '#6b7280', transition: 'all 0.15s' }}>
                         {opt.label}
                       </button>
                     );
@@ -1254,28 +1149,13 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
                 </div>
               </div>
 
-              {/* Email — only when preferredContact === email */}
               {form.preferredContact === 'email' && (
                 <div style={{ marginBottom: 16 }}>
-                  <label style={s.label}>
-                    Email Address <span style={{ color: '#ef4444' }}>*</span>
-                    {isLocked('email') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}
-                  </label>
+                  <label style={s.label}>Email Address <span style={{ color: '#ef4444' }}>*</span>{isLocked('email') && <Lock size={11} color="#9ca3af" style={{ display: 'inline', marginLeft: 5, verticalAlign: 'middle' }} />}</label>
                   <div style={{ position: 'relative' }}>
                     <Mail size={14} color={errors.email ? '#ef4444' : '#9ca3af'} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      style={{ ...(isLocked('email') ? s.readonlyInput : s.input(!!errors.email)), paddingLeft: 34 }}
-                      placeholder="juan@email.com"
-                      value={form.email}
-                      onChange={e => updateForm('email', e.target.value)}
-                      onBlur={() => touch('email')}
-                      readOnly={isLocked('email')}
-                      type="email"
-                      maxLength={100}
-                    />
-                    {(isLocked('email') || (form.email.trim().length > 0 && !errors.email && touched.email)) && (
-                      <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />
-                    )}
+                    <input style={{ ...(isLocked('email') ? s.readonlyInput : s.input(!!errors.email)), paddingLeft: 34 }} placeholder="juan@email.com" value={form.email} onChange={e => updateForm('email', e.target.value)} onBlur={() => touch('email')} readOnly={isLocked('email')} type="email" maxLength={100} />
+                    {(isLocked('email') || (form.email.trim().length > 0 && !errors.email && touched.email)) && <CheckCircle2 size={14} color="#22c55e" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }} />}
                   </div>
                   {errors.email && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>⚠ {errors.email}</p>}
                 </div>
@@ -1295,7 +1175,6 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
           </>
         )}
 
-        {/* Success step */}
         {step === 'success' && (
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 28px', textAlign: 'center' }}>
             <div style={{ width: 68, height: 68, background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 8px 24px rgba(16,185,129,0.2)' }}>
@@ -1307,12 +1186,7 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
               <strong style={{ color: '#111827' }}>{selectedDate?.day}, {selectedDate?.label} at {selectedTime?.label}</strong>{' '}
               has been submitted. We'll confirm via <strong style={{ color: '#111827' }}>{form.preferredContact.toUpperCase()}</strong>.
             </p>
-            <a
-              href={gcalLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', border: '1.5px solid #e5e7eb', borderRadius: 12, marginBottom: 10, background: '#fff', fontSize: 14, fontWeight: 600, color: '#374151', textDecoration: 'none' }}
-            >
+            <a href={gcalLink} target="_blank" rel="noopener noreferrer" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', border: '1.5px solid #e5e7eb', borderRadius: 12, marginBottom: 10, background: '#fff', fontSize: 14, fontWeight: 600, color: '#374151', textDecoration: 'none' }}>
               📅 Add to Google Calendar
             </a>
             <button onClick={onClose} style={{ ...s.primaryBtn(false), width: '100%', flex: 'none' as any }}>Done</button>
@@ -1327,13 +1201,14 @@ function TourModal({ onClose, property }: { onClose: () => void; property: Prope
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PropertyDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [property,         setProperty]         = useState<Property | null>(null);
-  const [loading,          setLoading]          = useState(true);
-  const [imageIndex,       setImageIndex]       = useState(0);
-  const [lightboxOpen,     setLightboxOpen]     = useState(false);
-  const [showContactModal, setShowContactModal] = useState(false);
-  const [showTourModal,    setShowTourModal]    = useState(false);
-  const [shareCopied,      setShareCopied]      = useState(false);
+  const [property,            setProperty]            = useState<Property | null>(null);
+  const [loading,             setLoading]             = useState(true);
+  const [imageIndex,          setImageIndex]          = useState(0);
+  const [lightboxOpen,        setLightboxOpen]        = useState(false);
+  const [showContactModal,    setShowContactModal]    = useState(false);
+  const [showTourModal,       setShowTourModal]       = useState(false);
+  const [showVirtualTour,     setShowVirtualTour]     = useState(false);   // ← NEW
+  const [shareCopied,         setShareCopied]         = useState(false);
   const { isFavorited, toggleFavorite } = useFavorites();
 
   useEffect(() => {
@@ -1351,7 +1226,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
     fetchProperty();
   }, [id]);
 
-  // Keyboard navigation for lightbox
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!lightboxOpen) return;
     if (e.key === 'ArrowRight') setImageIndex(prev => (prev + 1) % images.length);
@@ -1386,17 +1260,34 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   }
 
   // ── Normalise images ──────────────────────────────────────────────────────
-  const rawImages: any[] = (property as any).images ?? [];
-  const images: string[] = rawImages
-    .map((img: any) => (typeof img === 'string' ? img : img?.url ?? ''))
-    .filter(Boolean);
-  if (images.length === 0 && (property as any).thumbnail) {
-    images.push((property as any).thumbnail);
-  }
+  // ── Normalise images ──────────────────────────────────────────────────────
+const rawImages: any[] = (property as any).images ?? [];
+const images: string[] = rawImages
+  .map((img: any) => {
+    const raw = typeof img === 'string' ? img : img?.url ?? '';
+    // Proxy backend URLs so Next/Image optimizer accepts them
+    return raw.replace('http://localhost:8000', '/img-proxy');
+  })
+  .filter(Boolean);
+if (images.length === 0 && (property as any).thumbnail) {
+  images.push(
+    String((property as any).thumbnail).replace('http://localhost:8000', '/img-proxy')
+  );
+}
 
   const blurHash: string = (property as any).blur_hash ?? '';
 
-  const currentImage = images[imageIndex] ?? '/placeholder-property.jpg';
+  // ── 360° image field — check multiple common field names ──────────────────
+  // ── 360° image field ──────────────────────────────────────────────────────
+    const currentImage = images[imageIndex] ?? '/placeholder-property.jpg';
+const tour360Url: string =
+  (property as any).virtual_tour_image ??
+  (property as any).tour_360 ??
+  (property as any).virtual_tour_url ??
+  (property as any).tour_image_360 ??
+  currentImage ?? '';
+
+
   const nextImage    = () => setImageIndex(prev => (prev + 1) % images.length);
   const prevImage    = () => setImageIndex(prev => (prev - 1 + images.length) % images.length);
 
@@ -1410,11 +1301,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   const areaDisplay = (property as any).area ? String((property as any).area) : '—';
 
   const handleShare = async () => {
-    const shareData = {
-      title: property.title,
-      text:  `${property.title} — ${priceDisplay}`,
-      url:   window.location.href,
-    };
+    const shareData = { title: property.title, text: `${property.title} — ${priceDisplay}`, url: window.location.href };
     if (navigator.share) {
       try { await navigator.share(shareData); } catch { /* user cancelled */ }
     } else {
@@ -1438,15 +1325,28 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
     agentId:   (property as any).agent?.id ?? null,
   };
 
-  // ── CDN URLs for main gallery ─────────────────────────────────────────────
-  // Hero image: full width up to ~800px tall — request 1200×800
   const heroThumbUrl = cdnUrl(currentImage, 1200, 800);
-  // Thumbnail strip: 80×80 display → request 160×160
-  const thumbUrls = images.map(img => cdnUrl(img, 80, 80));
+  const thumbUrls    = images.map(img => cdnUrl(img, 80, 80));
 
   return (
     <div className="w-full">
-      {/* ── Modals — only mounted when open ── */}
+      {/* ── Virtual Tour Modal (lazy-loaded Three.js) ── */}
+      {showVirtualTour && tour360Url && (
+        <Suspense fallback={
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Loader2 size={32} color="#c0392b" style={{ animation: 'spin 1s linear infinite' }} />
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        }>
+         <VirtualTourModal
+  imageUrl={currentImage || tour360Url}
+  propertyTitle={property.title}
+  onClose={() => setShowVirtualTour(false)}
+/>
+        </Suspense>
+      )}
+
+      {/* ── Contact / Tour Modals ── */}
       {showContactModal && (
         <ContactModal
           onClose={() => setShowContactModal(false)}
@@ -1458,16 +1358,10 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
         <TourModal onClose={() => setShowTourModal(false)} property={propertySnapshot} />
       )}
 
-      {/* ── Lightbox — only mounted when open ── */}
+      {/* ── Lightbox ── */}
       {lightboxOpen && (
-        <div
-          className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center"
-          onClick={() => setLightboxOpen(false)}
-        >
-          <button
-            onClick={() => setLightboxOpen(false)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"
-          >
+        <div className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center" onClick={() => setLightboxOpen(false)}>
+          <button onClick={() => setLightboxOpen(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10">
             <X className="w-5 h-5" />
           </button>
           {images.length > 1 && (
@@ -1477,58 +1371,22 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           )}
           {images.length > 1 && (
             <>
-              <button
-                onClick={e => { e.stopPropagation(); prevImage(); }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"
-              >
+              <button onClick={e => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10">
                 <ChevronLeft className="w-6 h-6" />
               </button>
-              <button
-                onClick={e => { e.stopPropagation(); nextImage(); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10"
-              >
+              <button onClick={e => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10">
                 <ChevronRight className="w-6 h-6" />
               </button>
             </>
           )}
-
-          {/* Lightbox main image — full resolution, priority since it's visible immediately */}
-          <div
-            className="relative max-w-[90vw] max-h-[80vh] w-full"
-            style={{ aspectRatio: '16/9' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <Image
-              src={currentImage}
-              alt={property.title}
-              fill
-              sizes="90vw"
-              priority
-              className="object-contain rounded-lg shadow-2xl"
-            />
+          <div className="relative max-w-[90vw] max-h-[80vh] w-full" style={{ aspectRatio: '16/9' }} onClick={e => e.stopPropagation()}>
+            <Image src={currentImage} alt={property.title} fill sizes="90vw" priority className="object-contain rounded-lg shadow-2xl" />
           </div>
-
-          {/* Lightbox thumbnail strip */}
           {images.length > 1 && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 overflow-x-auto max-w-[80vw] px-2">
               {images.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={e => { e.stopPropagation(); setImageIndex(idx); }}
-                  className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 relative transition-all ${
-                    idx === imageIndex ? 'border-white' : 'border-white/20 opacity-40 hover:opacity-80'
-                  }`}
-                >
-                  <Image
-                    src={thumbUrls[idx]}
-                    alt=""
-                    fill
-                    sizes="56px"
-                    loading="lazy"
-                    placeholder="blur"
-                    blurDataURL={blurHash || BLUR_PLACEHOLDER}
-                    className="object-cover"
-                  />
+                <button key={idx} onClick={e => { e.stopPropagation(); setImageIndex(idx); }} className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 relative transition-all ${idx === imageIndex ? 'border-white' : 'border-white/20 opacity-40 hover:opacity-80'}`}>
+                  <Image src={thumbUrls[idx]} alt="" fill sizes="56px" loading="lazy" placeholder="blur" blurDataURL={blurHash || BLUR_PLACEHOLDER} className="object-cover" />
                 </button>
               ))}
             </div>
@@ -1552,11 +1410,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           <div className="lg:col-span-2">
 
             {/* ── Hero image ── */}
-            <div
-              className="glass rounded-xl overflow-hidden mb-4 aspect-video relative group cursor-zoom-in"
-              onClick={() => setLightboxOpen(true)}
-            >
-              {/* Priority on the first (visible) image — no lazy, prefetch immediately */}
+            <div className="glass rounded-xl overflow-hidden mb-4 aspect-video relative group cursor-zoom-in" onClick={() => setLightboxOpen(true)}>
               <Image
                 src={heroThumbUrl}
                 alt={`${property.title} - ${imageIndex + 1}`}
@@ -1569,6 +1423,18 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                 className="object-cover"
               />
 
+              {/* 360° badge on hero if tour exists */}
+              {tour360Url && (
+                <button
+                  onClick={e => { e.stopPropagation(); setShowVirtualTour(true); }}
+                  className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:scale-105 active:scale-95"
+                  style={{ background: 'linear-gradient(135deg, rgba(192,57,43,0.95), rgba(231,76,60,0.95))', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 4px 16px rgba(192,57,43,0.4)' }}
+                >
+                  <Rotate3D size={13} />
+                  360° Virtual Tour
+                </button>
+              )}
+
               {images.length > 1 && (
                 <div className="absolute top-4 right-4 bg-black/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
                   {imageIndex + 1} / {images.length}
@@ -1579,25 +1445,15 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               </div>
               {images.length > 1 && (
                 <>
-                  <button
-                    onClick={e => { e.stopPropagation(); prevImage(); }}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10"
-                  >
+                  <button onClick={e => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10">
                     <ChevronLeft className="w-6 h-6 text-foreground" />
                   </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); nextImage(); }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10"
-                  >
+                  <button onClick={e => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full transition z-10">
                     <ChevronRight className="w-6 h-6 text-foreground" />
                   </button>
                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                     {images.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={e => { e.stopPropagation(); setImageIndex(idx); }}
-                        className={`w-2 h-2 rounded-full transition ${idx === imageIndex ? 'bg-white' : 'bg-white/50'}`}
-                      />
+                      <button key={idx} onClick={e => { e.stopPropagation(); setImageIndex(idx); }} className={`w-2 h-2 rounded-full transition ${idx === imageIndex ? 'bg-white' : 'bg-white/50'}`} />
                     ))}
                   </div>
                 </>
@@ -1608,25 +1464,8 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
             {images.length > 1 && (
               <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
                 {images.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setImageIndex(idx)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative transition-all ${
-                      idx === imageIndex
-                        ? 'border-primary ring-2 ring-primary/20'
-                        : 'border-border opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <Image
-                      src={thumbUrls[idx]}
-                      alt=""
-                      fill
-                      sizes="80px"
-                      loading="lazy"            // strip thumbnails are always below-fold
-                      placeholder="blur"
-                      blurDataURL={blurHash || BLUR_PLACEHOLDER}
-                      className="object-cover"
-                    />
+                  <button key={idx} onClick={() => setImageIndex(idx)} className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative transition-all ${idx === imageIndex ? 'border-primary ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}>
+                    <Image src={thumbUrls[idx]} alt="" fill sizes="80px" loading="lazy" placeholder="blur" blurDataURL={blurHash || BLUR_PLACEHOLDER} className="object-cover" />
                   </button>
                 ))}
               </div>
@@ -1639,9 +1478,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                 <MapPin className="w-5 h-5 flex-shrink-0 mt-1" />
                 <div>
                   <p>{property.address}</p>
-                  <p className="text-sm">
-                    {property.city}, {(property as any).state} {(property as any).zip_code ?? (property as any).zipCode}
-                  </p>
+                  <p className="text-sm">{property.city}, {(property as any).state} {(property as any).zip_code ?? (property as any).zipCode}</p>
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-4 mb-8 pb-8 border-b border-border">
@@ -1701,6 +1538,25 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                 >
                   Schedule Tour
                 </Button>
+
+                {/* ── Virtual Tour button — only shown when 360 image exists ── */}
+                {tour360Url && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-border hover:bg-muted relative overflow-hidden group"
+                    size="lg"
+                    onClick={() => setShowVirtualTour(true)}
+                  >
+                    {/* Animated shimmer on hover */}
+                    <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{ background: 'linear-gradient(90deg, transparent, rgba(192,57,43,0.06), transparent)', backgroundSize: '200% 100%' }}
+                    />
+                    <Rotate3D className="w-4 h-4 mr-2 text-primary" />
+                    <span className="font-semibold">360° Virtual Tour</span>
+                    <span className="ml-auto text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">NEW</span>
+                  </Button>
+                )}
+
                 <Button
                   onClick={() => toggleFavorite(propertyId)}
                   variant="outline"
@@ -1712,10 +1568,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                 </Button>
               </div>
 
-              <button
-                className="w-full flex items-center justify-center gap-2 p-3 hover:bg-muted rounded-lg transition text-sm font-medium"
-                onClick={handleShare}
-              >
+              <button className="w-full flex items-center justify-center gap-2 p-3 hover:bg-muted rounded-lg transition text-sm font-medium" onClick={handleShare}>
                 <Share2 className="w-4 h-4" />
                 {shareCopied ? '✓ Link Copied!' : 'Share'}
               </button>
@@ -1726,7 +1579,6 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               <div className="glass rounded-xl p-8">
                 <h3 className="font-bold text-lg mb-4">Listed by</h3>
                 <div className="flex items-start gap-4">
-                  {/* Agent avatar — plain img avoids next/image 400 on localhost */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={(property as any).agent.avatar ?? `https://ui-avatars.com/api/?name=${encodeURIComponent((property as any).agent.name)}&size=128&background=random`}
@@ -1749,16 +1601,11 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                       {(property as any).agent.phone && (
                         <a href={`tel:${(property as any).agent.phone}`} className="block w-full">
                           <Button variant="outline" className="w-full border-border hover:bg-muted text-sm justify-center">
-                            <Phone className="w-4 h-4 mr-1" />
-                            {(property as any).agent.phone}
+                            <Phone className="w-4 h-4 mr-1" />{(property as any).agent.phone}
                           </Button>
                         </a>
                       )}
-                      <Button
-                        variant="outline"
-                        className="w-full border-border hover:bg-muted text-sm justify-center"
-                        onClick={() => setShowContactModal(true)}
-                      >
+                      <Button variant="outline" className="w-full border-border hover:bg-muted text-sm justify-center" onClick={() => setShowContactModal(true)}>
                         <Mail className="w-4 h-4 mr-1" />Message
                       </Button>
                     </div>
