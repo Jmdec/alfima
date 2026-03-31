@@ -78,12 +78,10 @@ function buildHeaders(token?: string | null, userId?: number | string | null): R
 }
 
 // ─── Property fetcher ─────────────────────────────────────────────────────────
-// Strategy: try with full filters first, then progressively relax them
-// so the bot always returns something rather than an empty result.
 async function fetchProperties(params: Record<string, string>): Promise<Property[]> {
   const attempts: Record<string, string>[] = [];
 
-  // Attempt 1: full filters (listing_type + property_type + city + price)
+  // Attempt 1: full filters
   attempts.push({ ...params });
 
   // Attempt 2: drop city constraint
@@ -101,13 +99,13 @@ async function fetchProperties(params: Record<string, string>): Promise<Property
     attempts.push(noType);
   }
 
-  // Attempt 4: drop price constraints too — just listing_type
+  // Attempt 4: just listing_type
   if (params.listing_type) {
     const listingOnly = { listing_type: params.listing_type, per_page: params.per_page ?? '3' };
     attempts.push(listingOnly);
   }
 
-  // Attempt 5: completely unfiltered — just return anything
+  // Attempt 5: completely unfiltered
   attempts.push({ per_page: params.per_page ?? '6' });
 
   for (const attempt of attempts) {
@@ -119,7 +117,6 @@ async function fetchProperties(params: Record<string, string>): Promise<Property
       });
       if (!res.ok) continue;
       const data = await res.json();
-      // Handle both { data: [...] } and [...] and { properties: [...] }
       const list: Property[] = Array.isArray(data)
         ? data
         : (data.data ?? data.properties ?? data.items ?? []);
@@ -171,16 +168,29 @@ const TYPE_MAP: Record<string, string> = {
   commercial: 'commercial', office: 'commercial', warehouse: 'commercial', retail: 'commercial',
 };
 
+// ─── FIX: Tightened intent detection ─────────────────────────────────────────
+// Removed overly-broad generic browse triggers (what, ano, show, find, etc.)
+// that were matching casual greetings. Now only explicit property/listing
+// keywords set listing_type, preventing false property searches.
 function detectIntent(text: string): Intent {
   const lower = text.toLowerCase();
   const intent: Intent = {};
 
-  // Listing type
-  if (/\b(buy|for sale|purchase|bilhin|pre-selling|preselling|bibili|nabibili)\b/.test(lower)) intent.listing_type = 'for_sale';
-  if (/\b(rent|rental|lease|for rent|upa|mag-rent|inuupahan|paupahan)\b/.test(lower))           intent.listing_type = 'for_rent';
+  // Listing type — explicit buy/sell/rent keywords only
+  if (/\b(buy|for sale|purchase|bilhin|pre-selling|preselling|bibili|nabibili)\b/.test(lower)) {
+    intent.listing_type = 'for_sale';
+  }
+  if (/\b(rent|rental|lease|for rent|upa|mag-rent|inuupahan|paupahan)\b/.test(lower)) {
+    intent.listing_type = 'for_rent';
+  }
 
-  // Generic browse triggers — default to for_sale if no listing type given
-  if (!intent.listing_type && /\b(browse|show|list|properties|presyo|ano|what|find|looking|search|available)\b/.test(lower)) {
+  // Explicit browse/search for properties — must pair with a property-related keyword
+  // e.g. "browse properties", "show me condos", "find houses", "search listings"
+  if (
+    !intent.listing_type &&
+    /\b(browse|show|list|find|search|available|looking for)\b/.test(lower) &&
+    /\b(properties|property|condo|condominiums|house|houses|townhouse|lot|lots|listing|listings|rental|rentals|units|unit)\b/.test(lower)
+  ) {
     intent.listing_type = 'for_sale'; // default to sale listings
   }
 
@@ -207,7 +217,7 @@ function detectIntent(text: string): Intent {
   const rentStudio = /studio.*rent|1br.*rent|rent.*studio|rent.*1br/i.test(lower);
   if (rentStudio) { intent.listing_type = 'for_rent'; intent.property_type = 'condominium'; }
 
-  // Actions (only set if no property search intent already detected)
+  // Actions
   if (/\b(agent|broker|speak|talk|human|live|kausap|call)\b/.test(lower))          intent.action = 'agent';
   if (/\b(schedule|viewing|visit|tour|tripping|mag-visit)\b/.test(lower))           intent.action = 'schedule';
   if (/\b(contact|address|location|office|saan|where|map)\b/.test(lower))           intent.action = 'contact';
@@ -216,7 +226,7 @@ function detectIntent(text: string): Intent {
   return intent;
 }
 
-// ─── Static responses (for non-property intents) ──────────────────────────────
+// ─── Static responses ─────────────────────────────────────────────────────────
 function getStaticResponse(intent: Intent, name: string): { text: string; suggestions: string[] } | null {
   switch (intent.action) {
     case 'contact':
@@ -584,8 +594,16 @@ export function Chatbot() {
 
     setIsTyping(true);
 
+    // ── Check if there's any property-related signal at all
+    const hasPropertySignal = !!(
+      intent.listing_type ||
+      intent.property_type ||
+      intent.city ||
+      intent.min_price ||
+      intent.max_price
+    );
+
     // ── Pure static actions (contact / about / schedule) with NO property signals
-    const hasPropertySignal = intent.listing_type || intent.property_type || intent.city || intent.min_price || intent.max_price;
     const staticResp = getStaticResponse(intent, guestName || user?.name || '');
     if (staticResp && !hasPropertySignal) {
       setTimeout(() => {
@@ -596,7 +614,7 @@ export function Chatbot() {
       return;
     }
 
-    // ── Wants agent only (no property query) ──────────────────────────────
+    // ── Wants agent only (no property query)
     if (wantsHuman && !hasPropertySignal) {
       setTimeout(() => {
         addLocalBotMsg("Sure! Let me connect you with one of our agents. 👨‍💼", [], true, token);
@@ -606,7 +624,23 @@ export function Chatbot() {
       return;
     }
 
-    // ── Property search — ALWAYS try to fetch, fallback chain built into fetchProperties
+    // ── FIX: No property signal and no action — treat as a greeting / unknown message
+    // Show a friendly fallback with the main menu instead of searching for properties.
+    if (!hasPropertySignal && !intent.action) {
+      setTimeout(() => {
+        const name = user?.name ?? guestName;
+        addLocalBotMsg(
+          `😊 Hi${name ? `, **${name}**` : ''}! How can I help you today?`,
+          INITIAL_SUGGESTIONS,
+          true,
+          token
+        );
+        setIsTyping(false);
+      }, 600);
+      return;
+    }
+
+    // ── Property search — only reached when there IS an explicit property signal
     const params: Record<string, string> = { per_page: '3' };
     if (intent.listing_type)  params.listing_type  = intent.listing_type;
     if (intent.property_type) params.property_type = intent.property_type;
@@ -619,7 +653,6 @@ export function Chatbot() {
 
       setTimeout(() => {
         if (properties.length > 0) {
-          // Build a natural label based on what was found vs what was asked
           const foundType   = properties[0].property_type?.replace(/_/g, ' ') ?? '';
           const askedType   = intent.property_type?.replace(/_/g, ' ') ?? '';
           const askedCity   = intent.city ?? '';
@@ -643,7 +676,6 @@ export function Chatbot() {
             true, token, properties
           );
         } else {
-          // Truly nothing found — still give agent option prominently
           addLocalBotMsg(
             `😔 I couldn't find listings matching that search right now, but our portfolio is updated regularly!\n\nOur agents may have **exclusive off-market listings** — want me to connect you with one?`,
             withBack(['Talk to an agent', 'Browse properties for sale', 'Find rental properties']),
