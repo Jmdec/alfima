@@ -62,10 +62,21 @@ function StatusBadge({ status }: { status: SessionStatus }) {
   );
 }
 
-function Avatar({ name, size = 36 }: { name: string; size?: number }) {
-  const initials = name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  const palette  = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#14b8a6'];
-  const bg       = palette[name.charCodeAt(0) % palette.length];
+// ✅ FIX: guard against undefined/null name to prevent "Cannot read properties of undefined (reading 'split')"
+function Avatar({ name, size = 36 }: { name?: string; size?: number }) {
+  const safeName = name ?? '';
+  const initials = safeName
+    .split(' ')
+    .slice(0, 2)
+    .map(w => w[0])
+    .join('')
+    .toUpperCase();
+
+  const palette = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#14b8a6'];
+  const bg = safeName
+    ? palette[safeName.charCodeAt(0) % palette.length]
+    : '#94a3b8'; // neutral grey when name is missing
+
   return (
     <div style={{ width: size, height: size, borderRadius: '50%', background: bg,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -111,7 +122,7 @@ export default function AdminChatPage() {
   const [sending,         setSending]         = useState(false);
   const [search,          setSearch]          = useState('');
   const [filterStatus,    setFilterStatus]    = useState<SessionStatus | 'all'>('all');
-  const [showChat,        setShowChat]        = useState(false); // mobile: true = show chat, false = show list
+  const [showChat,        setShowChat]        = useState(false);
 
   const messagesEndRef     = useRef<HTMLDivElement>(null);
   const replyRef           = useRef<HTMLTextAreaElement>(null);
@@ -222,7 +233,8 @@ export default function AdminChatPage() {
 
   const filtered = sessions.filter(s =>
     (filterStatus === 'all' || s.status === filterStatus) &&
-    (!search || s.guest_name.toLowerCase().includes(search.toLowerCase()))
+    // ✅ FIX: guard guest_name before calling toLowerCase()
+    (!search || (s.guest_name ?? '').toLowerCase().includes(search.toLowerCase()))
   );
   const totalUnread = sessions.reduce((n, s) => n + s.unread, 0);
 
@@ -233,7 +245,6 @@ export default function AdminChatPage() {
           display: flex;
           height: 100%;
           overflow: hidden;
-          
           background: #f8fafc;
           font-family: system-ui, -apple-system, sans-serif;
         }
@@ -252,7 +263,6 @@ export default function AdminChatPage() {
           min-width: 0;
           background: #f8fafc;
         }
-        /* Mobile: show only one panel at a time */
         @media (max-width: 767px) {
           .ach-root { height: 100%; }
           .ach-sidebar { width: 100%; }
@@ -358,13 +368,14 @@ export default function AdminChatPage() {
                   onClick={() => openSession(session.id)}
                   className={`ach-session-row${activeSession?.session.id === session.id ? ' active' : ''}`}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <Avatar name={session.guest_name} size={36} />
+                    {/* ✅ FIX: fallback 'Unknown' so Avatar never receives undefined */}
+                    <Avatar name={session.guest_name ?? 'Unknown'} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center',
                         justifyContent: 'space-between', gap: 6, marginBottom: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b',
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {session.guest_name}
+                          {session.guest_name ?? 'Unknown'}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           {session.unread > 0 && (
@@ -406,18 +417,18 @@ export default function AdminChatPage() {
                 background: '#fff', display: 'flex', alignItems: 'center',
                 justifyContent: 'space-between', flexShrink: 0, gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  {/* Back — mobile */}
                   <button onClick={() => setShowChat(false)}
                     style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: 7,
                       cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}
                     className="md:hidden">
                     <ArrowLeft size={16} color="#475569" />
                   </button>
-                  <Avatar name={activeSession.session.guest_name} size={38} />
+                  {/* ✅ FIX: fallback here too */}
+                  <Avatar name={activeSession.session.guest_name ?? 'Unknown'} size={38} />
                   <div style={{ minWidth: 0 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b',
                       margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {activeSession.session.guest_name}
+                      {activeSession.session.guest_name ?? 'Unknown'}
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {activeSession.session.guest_email && (
