@@ -173,10 +173,10 @@ function LoginContent() {
                   onChange={handleChange} placeholder="juan@example.com" required autoComplete="email" />
               </div>
               <div className="field">
-                <div className="pw-row">
+                {/* <div className="pw-row">
                   <label className="field-label" style={{ margin: 0 }}>Password</label>
                   <Link href="/forgot-password" className="forgot-link">Forgot?</Link>
-                </div>
+                </div> */}
                 <div className="pw-wrap">
                   <input className="field-input" type={showPassword ? 'text' : 'password'} name="password"
                     value={formData.password} onChange={handleChange} placeholder="••••••••"
