@@ -10,11 +10,11 @@ import {
   Heart, MapPin, Phone, Mail, Share2, ChevronLeft, ChevronRight,
   X, Search, CheckCircle2, User, MessageSquare, Calendar,
   ArrowRight, Loader2, Building2, Clock, Video, Home, Lock,
-  Rotate3D,    // ← 360° tour icon
+  // Rotate3D,    // ← 360° tour icon — commented out
 } from 'lucide-react';
 
 // ── Lazy-load the heavy Three.js modal ───────────────────────────────────────
-// const VirtualTourModal = lazy(() => import('@/components/VirtualTourModal'));
+// const VirtualTourModal = lazy(() => import('@/components/VirtualTourModal')); // ← 360° tour — commented out
 
 // ── Tiny 1×1 transparent placeholder used as blurDataURL fallback ─────────────
 const BLUR_PLACEHOLDER =
@@ -1207,7 +1207,7 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   const [lightboxOpen,        setLightboxOpen]        = useState(false);
   const [showContactModal,    setShowContactModal]    = useState(false);
   const [showTourModal,       setShowTourModal]       = useState(false);
-  const [showVirtualTour,     setShowVirtualTour]     = useState(false);   // ← NEW
+  // const [showVirtualTour,     setShowVirtualTour]     = useState(false);   // ← 360° tour — commented out
   const [shareCopied,         setShareCopied]         = useState(false);
   const { isFavorited, toggleFavorite } = useFavorites();
 
@@ -1268,12 +1268,10 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   }
 
   // ── Normalise images ──────────────────────────────────────────────────────
-  // ── Normalise images ──────────────────────────────────────────────────────
 const rawImages: any[] = (property as any).images ?? [];
 const images: string[] = rawImages
   .map((img: any) => {
     const raw = typeof img === 'string' ? img : img?.url ?? '';
-    // Proxy backend URLs so Next/Image optimizer accepts them
     return raw.replace('http://localhost:8000', '/img-proxy');
   })
   .filter(Boolean);
@@ -1285,16 +1283,15 @@ if (images.length === 0 && (property as any).thumbnail) {
 
   const blurHash: string = (property as any).blur_hash ?? '';
 
-  // ── 360° image field — check multiple common field names ──────────────────
-  // ── 360° image field ──────────────────────────────────────────────────────
-    const currentImage = images[imageIndex] ?? '/placeholder-property.jpg';
-const tour360Url: string =
-  (property as any).virtual_tour_image ??
-  (property as any).tour_360 ??
-  (property as any).virtual_tour_url ??
-  (property as any).tour_image_360 ??
-  currentImage ?? '';
+  // ── 360° tour URL — commented out ─────────────────────────────────────────
+  // const tour360Url: string =
+  //   (property as any).virtual_tour_image ??
+  //   (property as any).tour_360 ??
+  //   (property as any).virtual_tour_url ??
+  //   (property as any).tour_image_360 ??
+  //   currentImage ?? '';
 
+  const currentImage = images[imageIndex] ?? '/placeholder-property.jpg';
 
   const nextImage    = () => setImageIndex(prev => (prev + 1) % images.length);
   const prevImage    = () => setImageIndex(prev => (prev - 1 + images.length) % images.length);
@@ -1338,7 +1335,7 @@ const tour360Url: string =
 
   return (
     <div className="w-full">
-      {/* ── Virtual Tour Modal (lazy-loaded Three.js) ── */}
+      {/* ── Virtual Tour Modal — commented out ── */}
       {/* {showVirtualTour && tour360Url && (
         <Suspense fallback={
           <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1347,10 +1344,10 @@ const tour360Url: string =
           </div>
         }>
          <VirtualTourModal
-  imageUrl={currentImage || tour360Url}
-  propertyTitle={property.title}
-  onClose={() => setShowVirtualTour(false)}
-/>
+            imageUrl={currentImage || tour360Url}
+            propertyTitle={property.title}
+            onClose={() => setShowVirtualTour(false)}
+          />
         </Suspense>
       )} */}
 
@@ -1431,8 +1428,8 @@ const tour360Url: string =
                 className="object-cover"
               />
 
-              {/* 360° badge on hero if tour exists */}
-              {tour360Url && (
+              {/* 360° badge on hero — commented out */}
+              {/* {tour360Url && (
                 <button
                   onClick={e => { e.stopPropagation(); setShowVirtualTour(true); }}
                   className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:scale-105 active:scale-95"
@@ -1441,7 +1438,7 @@ const tour360Url: string =
                   <Rotate3D size={13} />
                   360° Virtual Tour
                 </button>
-              )}
+              )} */}
 
               {images.length > 1 && (
                 <div className="absolute top-4 right-4 bg-black/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
@@ -1547,15 +1544,14 @@ const tour360Url: string =
                   Schedule Tour
                 </Button>
 
-                {/* ── Virtual Tour button — only shown when 360 image exists ── */}
-                {tour360Url && (
+                {/* ── Virtual Tour button — commented out ── */}
+                {/* {tour360Url && (
                   <Button
                     variant="outline"
                     className="w-full border-border hover:bg-muted relative overflow-hidden group"
                     size="lg"
                     onClick={() => setShowVirtualTour(true)}
                   >
-                    {/* Animated shimmer on hover */}
                     <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       style={{ background: 'linear-gradient(90deg, transparent, rgba(192,57,43,0.06), transparent)', backgroundSize: '200% 100%' }}
                     />
@@ -1563,7 +1559,7 @@ const tour360Url: string =
                     <span className="font-semibold">360° Virtual Tour</span>
                     <span className="ml-auto text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">NEW</span>
                   </Button>
-                )}
+                )} */}
 
                 <Button
                   onClick={() => toggleFavorite(propertyId)}
