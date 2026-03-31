@@ -2,23 +2,34 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? process.env.API_URL ?? 'http://localhost:8000';
 
 // ── GET /api/properties/[id] (public) ────────────────────────────────────────
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!API_URL) {
+    return NextResponse.json({ error: 'API_URL is not configured' }, { status: 500 });
+  }
+
   try {
     const { id } = await params;
 
-    const res  = await fetch(`${API_URL}/api/properties/${id}`, {
+    const res = await fetch(`${API_URL}/api/properties/${id}`, {
       headers: { Accept: 'application/json' },
-      cache:   'no-store',
+      cache: 'no-store',
     });
-    const data = await res.json();
+
+    const data = await res.json().catch(() => ({ error: 'Invalid JSON from API' }));
+
+    if (!res.ok) {
+      return NextResponse.json({ error: data.error ?? 'Failed to fetch property' }, { status: res.status });
+    }
+
     return NextResponse.json(data, { status: res.status });
-  } catch {
+  } catch (err) {
+    console.error('[api/properties/[id] GET] error:', err);
     return NextResponse.json({ error: 'Failed to fetch property' }, { status: 500 });
   }
 }
@@ -45,6 +56,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete property' }, { status: 500 });
   }
 }
+
+
 // ── POST /api/properties/[id] (agent/admin — form-data with _method=PUT) ─────
 export async function POST(
   request: NextRequest,

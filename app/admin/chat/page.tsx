@@ -1,5 +1,3 @@
-// app/admin/chat/page.tsx
-
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -12,7 +10,7 @@ type SessionStatus = 'active' | 'resolved' | 'pending';
 
 interface ChatSession {
   id: number;
-  display_name: string;
+  guest_name: string;
   guest_email?: string;
   status: SessionStatus;
   unread: number;
@@ -32,7 +30,7 @@ interface ChatMessage {
 interface SessionDetail {
   session: {
     id: number;
-    display_name: string;
+    guest_name: string;
     guest_email?: string;
     status: SessionStatus;
     created_at: string;
@@ -224,7 +222,7 @@ export default function AdminChatPage() {
 
   const filtered = sessions.filter(s =>
     (filterStatus === 'all' || s.status === filterStatus) &&
-    (!search || s.display_name.toLowerCase().includes(search.toLowerCase()))
+    (!search || s.guest_name.toLowerCase().includes(search.toLowerCase()))
   );
   const totalUnread = sessions.reduce((n, s) => n + s.unread, 0);
 
@@ -360,13 +358,13 @@ export default function AdminChatPage() {
                   onClick={() => openSession(session.id)}
                   className={`ach-session-row${activeSession?.session.id === session.id ? ' active' : ''}`}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                    <Avatar name={session.display_name} size={36} />
+                    <Avatar name={session.guest_name} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center',
                         justifyContent: 'space-between', gap: 6, marginBottom: 2 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b',
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {session.display_name}
+                          {session.guest_name}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           {session.unread > 0 && (
@@ -415,11 +413,11 @@ export default function AdminChatPage() {
                     className="md:hidden">
                     <ArrowLeft size={16} color="#475569" />
                   </button>
-                  <Avatar name={activeSession.session.display_name} size={38} />
+                  <Avatar name={activeSession.session.guest_name} size={38} />
                   <div style={{ minWidth: 0 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b',
                       margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {activeSession.session.display_name}
+                      {activeSession.session.guest_name}
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {activeSession.session.guest_email && (

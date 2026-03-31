@@ -1214,11 +1214,19 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   useEffect(() => {
     const fetchProperty = async () => {
       try {
-        const res  = await fetch(`/api/properties/${id}`);
+        const res = await fetch(`/api/properties/${id}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.error('Failed to fetch property:', errData.error ?? `status ${res.status}`);
+          setProperty(null);
+          return;
+        }
+
         const data = await res.json();
         setProperty(data);
       } catch (error) {
         console.error('Failed to fetch property:', error);
+        setProperty(null);
       } finally {
         setLoading(false);
       }

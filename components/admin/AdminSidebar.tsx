@@ -37,8 +37,6 @@ const NAV_ITEMS = [
   {
     section: 'Config',
     items: [
-      { label: 'Amenities',  href: '/admin/amenities',  icon: Wrench },
-      { label: 'Locations',  href: '/admin/locations',  icon: MapPin },
       { label: 'Settings',   href: '/admin/settings',   icon: Settings },
     ],
   },

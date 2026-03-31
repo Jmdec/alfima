@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { Menu, X, LogOut, Heart, LayoutDashboard } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Menu, X, LogOut, Heart, LayoutDashboard, Settings, Download } from 'lucide-react';
 import { useAuth } from '@/lib/store';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -22,6 +22,10 @@ export function Navbar() {
   const [scrolled,       setScrolled]       = useState(false);
   const [mounted,        setMounted]        = useState(false);
 
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled,   setIsInstalled]   = useState(false);
+
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
@@ -39,7 +43,41 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', close);
   }, []);
 
+  // Capture the install prompt
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  // Hide button once app is installed
+  useEffect(() => {
+    const handler = () => setIsInstalled(true);
+    window.addEventListener('appinstalled', handler);
+    return () => window.removeEventListener('appinstalled', handler);
+  }, []);
+
+  // Also hide if already running as standalone (PWA)
+  useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+  }, []);
+
   if (pathname.startsWith('/admin')) return null;
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+      setIsInstalled(true);
+    }
+  };
 
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
@@ -54,6 +92,9 @@ export function Navbar() {
     '/';
 
   const isAgent = user?.role === 'agent';
+
+  // Show the install button only when prompt is available and not yet installed
+  const showInstall = mounted && !!installPrompt && !isInstalled;
 
   return (
     <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${
@@ -96,9 +137,19 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             {(!mounted || loading) && <div className="w-8 h-8 rounded-full bg-white/10 animate-pulse" />}
 
+            {/* Desktop Install Button */}
+            {showInstall && (
+              <button
+                onClick={handleInstall}
+                className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-white border border-white/20 hover:border-white/40 px-4 py-1.5 rounded-full transition-all hover:bg-white/10"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Install App
+              </button>
+            )}
+
             {mounted && !loading && user ? (
               <>
-                {/* ✅ Only visible to agents */}
                 {isAgent && (
                   <Link href="/list-property" className="hidden sm:inline">
                     <button className="text-sm font-bold text-white/80 hover:text-white border border-white/20 hover:border-white/40 px-4 py-1.5 rounded-full transition-all hover:bg-white/10">
@@ -129,6 +180,10 @@ export function Navbar() {
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition">
                         <LayoutDashboard className="w-4 h-4" /> Dashboard
                       </Link>
+                      <Link href="/settings" onClick={() => setIsUserMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition">
+                        <Settings className="w-4 h-4" /> Settings
+                      </Link>
                       {user.role === 'buyer' && (
                         <Link href="/favorites" onClick={() => setIsUserMenuOpen(false)}
                           className="flex items-center gap-2 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition">
@@ -145,19 +200,30 @@ export function Navbar() {
                 </div>
               </>
             ) : mounted && !loading && (
-              <>
-                {/* ✅ Removed from logged-out state entirely — guests can't list property */}
+              /* ✅ Login/Sign Up — Desktop ONLY, hidden on mobile */
+              <div className="hidden md:flex items-center gap-3">
                 <Link href="/login">
-                  <button className="text-sm font-semibold text-white/80 hover:text-white transition px-3 py-1.5">Login</button>
+                  <button className="text-sm font-semibold text-white/80 hover:text-white transition px-3 py-1.5">
+                    Login
+                  </button>
                 </Link>
                 <Link href="/register">
-                  <button className="text-sm font-bold text-white bg-red-700 hover:bg-red-600 px-5 py-2 rounded-full transition-all shadow-lg shadow-red-900/40 border border-red-500/30">Sign Up</button>
+                  <button className="text-sm font-bold text-white bg-red-700 hover:bg-red-600 px-5 py-2 rounded-full transition-all shadow-lg shadow-red-900/40 border border-red-500/30">
+                    Sign Up
+                  </button>
                 </Link>
-              </>
+              </div>
             )}
 
-            <button onClick={() => setIsOpen(o => !o)} className="md:hidden p-2 hover:bg-white/10 rounded-xl transition text-white">
-              {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {/* ✅ Hamburger — styled as a clean rounded button */}
+            <button
+              onClick={() => setIsOpen(o => !o)}
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-full border border-white/25 hover:border-white/50 bg-white/5 hover:bg-white/15 transition-all duration-200 text-white"
+            >
+              {isOpen
+                ? <X className="w-4 h-4" />
+                : <Menu className="w-4 h-4" />
+              }
             </button>
           </div>
         </div>
@@ -179,10 +245,10 @@ export function Navbar() {
                 {label}
               </Link>
             ))}
+
             <div className="pt-2 border-t border-white/10 mt-2">
               {user ? (
                 <>
-                  {/* ✅ Mobile: also only show for agents */}
                   {isAgent && (
                     <Link href="/list-property" onClick={() => setIsOpen(false)}
                       className="block px-4 py-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition font-medium">
@@ -199,10 +265,28 @@ export function Navbar() {
                   </button>
                 </>
               ) : (
-                <Link href="/login" onClick={() => setIsOpen(false)}
-                  className="block px-4 py-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition font-medium">
-                  Login / Register
-                </Link>
+                /* ✅ Mobile: Login & Register as separate styled buttons */
+                <div className="flex flex-col gap-1">
+                  <Link href="/login" onClick={() => setIsOpen(false)}
+                    className="block px-4 py-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition font-medium">
+                    Login
+                  </Link>
+                  <Link href="/register" onClick={() => setIsOpen(false)}
+                    className="mx-4 mt-1 text-center py-2.5 text-sm font-bold text-white bg-red-700 hover:bg-red-600 rounded-xl transition-all shadow-lg shadow-red-900/40">
+                    Sign Up
+                  </Link>
+                </div>
+              )}
+
+              {/* Mobile Install Button */}
+              {showInstall && (
+                <button
+                  onClick={() => { handleInstall(); setIsOpen(false); }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition font-medium"
+                >
+                  <Download className="w-4 h-4" />
+                  Install App
+                </button>
               )}
             </div>
           </div>
@@ -210,4 +294,12 @@ export function Navbar() {
       </div>
     </nav>
   );
+}
+
+// Extend the Window interface for the PWA install prompt
+declare global {
+  interface BeforeInstallPromptEvent extends Event {
+    prompt(): Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  }
 }

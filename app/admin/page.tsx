@@ -17,18 +17,34 @@ interface StatCard {
   color: string;
 }
 
-const STAT_CARDS: StatCard[] = [
-  { label: 'Total Properties', value: '50,234', change: '+12%',  up: true,  icon: Home,        color: 'bg-blue-500/10 text-blue-500' },
-  { label: 'Active Agents',    value: '523',    change: '+4%',   up: true,  icon: Users,       color: 'bg-emerald-500/10 text-emerald-500' },
-  { label: 'Total Users',      value: '12,456', change: '+8%',   up: true,  icon: Eye,         color: 'bg-purple-500/10 text-purple-500' },
-  { label: 'Blog Posts',       value: '248',    change: '-2%',   up: false, icon: FileText,    color: 'bg-orange-500/10 text-orange-500' },
+interface AdminStats {
+  totalProperties: number;
+  activeAgents: number;
+  totalInquiries: number;
+  totalTours: number;
+}
+
+type RecentActivity = {
+  type: 'property' | 'agent' | 'user' | 'inquiry' | 'report';
+  title: string;
+  sub: string;
+  time: string;
+  dot: string;
+  timestamp: number;
+};
+
+const STAT_CARDS: Omit<StatCard, 'value' | 'change' | 'up'>[] = [
+  { label: 'Total Properties', icon: Home, color: 'bg-blue-500/10 text-blue-500' },
+  { label: 'Active Agents',    icon: Users, color: 'bg-emerald-500/10 text-emerald-500' },
+  { label: 'Total Inquiries',  icon: FileText, color: 'bg-orange-500/10 text-orange-500' },
+  { label: 'Total Tours',      icon: Calendar, color: 'bg-violet-500/10 text-violet-500' },
 ];
 
 const QUICK_LINKS = [
   { label: 'Properties',  sub: 'Manage listings',        href: '/admin/properties', icon: Home,           color: 'from-blue-600 to-blue-700' },
   { label: 'Agents',      sub: 'Verify & manage agents', href: '/admin/agents',     icon: Users,          color: 'from-emerald-600 to-emerald-700' },
-  { label: 'Users',       sub: 'Manage accounts',        href: '/admin/users',      icon: Users,          color: 'from-purple-600 to-purple-700' },
-  { label: 'Blog',        sub: 'Content & posts',        href: '/admin/blog',       icon: FileText,       color: 'from-orange-600 to-orange-700' },
+  // { label: 'Users',       sub: 'Manage accounts',        href: '/admin/users',      icon: Users,          color: 'from-purple-600 to-purple-700' },
+  // { label: 'Blog',        sub: 'Content & posts',        href: '/admin/blog',       icon: FileText,       color: 'from-orange-600 to-orange-700' },
   { label: 'Inquiries',   sub: 'Buyer messages',         href: '/admin/inquiries',  icon: MessageSquare,  color: 'from-pink-600 to-pink-700' },
   { label: 'Tours',       sub: 'Scheduled viewings',     href: '/admin/tours',      icon: Calendar,       color: 'from-teal-600 to-teal-700' },
 ];
@@ -41,6 +57,165 @@ const RECENT_ACTIVITY = [
 ];
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const formatRelative = (iso: string | Date | undefined): string => {
+    if (!iso) return 'Just now';
+    const then = new Date(iso);
+    const now = new Date();
+    const diff = Math.max(0, now.getTime() - then.getTime());
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  useEffect(() => {
+    const parseJsonResponse = async (res: Response, source: string) => {
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`Dashboard: ${source} status ${res.status} ${res.statusText}`, text);
+        return { total: 0, data: [] };
+      }
+
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error(`Dashboard: ${source} unexpected content-type ${contentType}`, text);
+        return { total: 0, data: [] };
+      }
+
+      try {
+        return await res.json();
+      } catch (err) {
+        const text = await res.text();
+        console.error(`Dashboard: ${source} invalid JSON`, err, text);
+        return { total: 0, data: [] };
+      }
+    };
+
+    const fetchDashboard = async () => {
+      setLoading(true);
+      try {
+        const [propRes, agentRes, inquiryRes, tourRes] = await Promise.all([
+          fetch('/api/admin/properties?per_page=5'),
+          fetch('/api/admin/agents?per_page=5'),
+          fetch('/api/inquiries?per_page=5'),
+          fetch('/api/admin/tours?per_page=5'),
+        ]);
+        const tourJson = await parseJsonResponse(tourRes, 'tours');
+
+        const [propJson, agentJson, inquiryJson] = await Promise.all([
+          parseJsonResponse(propRes, 'properties'),
+          parseJsonResponse(agentRes, 'agents'),
+          parseJsonResponse(inquiryRes, 'inquiries'),
+        ]);
+
+        setStats({
+          totalProperties: propJson?.total ?? (Array.isArray(propJson) ? propJson.length : 0),
+          activeAgents:    agentJson?.total ?? (Array.isArray(agentJson) ? agentJson.length : 0),
+          totalInquiries:  inquiryJson?.total ?? (Array.isArray(inquiryJson) ? inquiryJson.length : 0),
+          totalTours:      tourJson?.total ?? (Array.isArray(tourJson) ? tourJson.length : 0),
+        });
+
+        const toTimestamp = (date: any): number => {
+          if (!date) return 0;
+          const d = new Date(date);
+          return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+        };
+
+        const propertyActivities = (propJson?.data ?? []).map((p: any) => {
+          const ts = toTimestamp(p.created_at);
+          return {
+            type: 'property' as const,
+            title: 'New property submitted',
+            sub: p.title ?? 'Unnamed property',
+            time: formatRelative(p.created_at),
+            dot: 'bg-blue-500',
+            timestamp: ts,
+          };
+        });
+
+        const agentActivities = (agentJson?.data ?? []).map((a: any) => {
+          const ts = toTimestamp(a.updated_at ?? a.created_at);
+          return {
+            type: 'agent' as const,
+            title: 'Agent updated',
+            sub: a.name ?? 'Agent',
+            time: formatRelative(a.updated_at ?? a.created_at),
+            dot: 'bg-emerald-500',
+            timestamp: ts,
+          };
+        });
+
+        const tourActivities = (tourJson?.data ?? []).map((t: any) => {
+          const ts = toTimestamp(t.created_at ?? t.date ?? t.updated_at);
+          return {
+            type: 'report' as const,
+            title: 'Tour request',
+            sub: `${t.property?.title ?? 'Unknown property'} — ${t.status ?? 'pending'}`,
+            time: formatRelative(t.created_at ?? t.date ?? t.updated_at),
+            dot: 'bg-violet-500',
+            timestamp: ts,
+          };
+        });
+
+        const inquiryActivities = (inquiryJson?.data ?? []).map((i: any) => {
+          const ts = toTimestamp(i.created_at);
+          return {
+            type: 'inquiry' as const,
+            title: 'New inquiry received',
+            sub: `${i.property?.title ?? 'Unknown property'} — from ${i.lead_email ?? i.lead_name ?? 'unknown'}`,
+            time: formatRelative(i.created_at),
+            dot: 'bg-orange-500',
+            timestamp: ts,
+          };
+        });
+
+        setRecentActivity([
+          ...propertyActivities,
+          ...tourActivities,
+          ...inquiryActivities,
+          ...agentActivities,
+        ]
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 6)
+        );
+      } catch (err) {
+        console.error('Failed to load dashboard stats', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, []);
+
+  const activeStatCards: StatCard[] = STAT_CARDS.map((base) => {
+    let value = '—';
+    let change = '0%';
+    let up = true;
+
+    if (stats) {
+      if (base.label === 'Total Properties') value = stats.totalProperties.toLocaleString();
+      if (base.label === 'Active Agents') value = stats.activeAgents.toLocaleString();
+      if (base.label === 'Total Inquiries') value = stats.totalInquiries.toLocaleString();
+      if (base.label === 'Total Tours') value = stats.totalTours.toLocaleString();
+
+      change = '+0%';
+      up = true;
+    }
+
+    return { ...base, value, change, up } as StatCard;
+  });
+
+  const activityItems = recentActivity.length > 0 ? recentActivity : RECENT_ACTIVITY;
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       {/* Page Header */}
@@ -51,7 +226,7 @@ export default function AdminDashboard() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-        {STAT_CARDS.map((s) => {
+        {activeStatCards.map((s) => {
           const Icon = s.icon;
           return (
             <div key={s.label} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -76,7 +251,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-slate-700">Quick Access</h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
           {QUICK_LINKS.map((q) => {
             const Icon = q.icon;
             return (
@@ -106,8 +281,8 @@ export default function AdminDashboard() {
             <span className="text-xs text-slate-400 font-medium">Last 7 days</span>
           </div>
           <div className="space-y-4">
-            {RECENT_ACTIVITY.map((a, i) => (
-              <div key={i} className={`flex items-start gap-3 ${i < RECENT_ACTIVITY.length - 1 ? 'pb-4 border-b border-slate-50' : ''}`}>
+            {activityItems.map((a, i) => (
+              <div key={i} className={`flex items-start gap-3 ${i < activityItems.length - 1 ? 'pb-4 border-b border-slate-50' : ''}`}>
                 <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${a.dot}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-slate-700 font-semibold text-sm">{a.title}</p>
@@ -129,9 +304,6 @@ export default function AdminDashboard() {
             {[
               { label: 'Add New Property', href: '/admin/properties',  icon: Home,      color: 'text-blue-500' },
               { label: 'Add New Agent',    href: '/admin/agents',      icon: Users,     color: 'text-emerald-500' },
-              { label: 'Create Blog Post', href: '/admin/blog/new',    icon: FileText,  color: 'text-orange-500' },
-              { label: 'Amenities',        href: '/admin/amenities',   icon: Settings,  color: 'text-purple-500' },
-              { label: 'Locations',        href: '/admin/locations',   icon: BarChart3, color: 'text-teal-500' },
               { label: 'Site Settings',    href: '/admin/settings',    icon: Settings,  color: 'text-slate-500' },
             ].map(({ label, href, icon: Icon, color }) => (
               <Link key={href} href={href}

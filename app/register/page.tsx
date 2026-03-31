@@ -68,7 +68,6 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? 'Registration failed.'); return; }
 
-      // ✅ Populate store immediately so navbar shows the user without refresh
       if (data.user) setUser(data.user);
 
       router.replace(formData.role === 'agent' ? '/agent/dashboard' : '/');
@@ -215,26 +214,26 @@ export default function RegisterPage() {
         .logo-row {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 12px;
           margin-bottom: 32px;
           margin-top: 8px;
         }
+
+        /* ✅ FIXED: removed black background, increased size to 48x48 */
         .logo-box {
-          width: 34px;
-          height: 34px;
-          background: #1a1208;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          width: 48px;
+          height: 48px;
+          border-radius: 10px;
+          overflow: hidden;
           flex-shrink: 0;
         }
-        .logo-box span {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 13px;
-          font-weight: 600;
-          color: #c9a84c;
-          letter-spacing: 0.08em;
+        .logo-box img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
+
         .logo-text {
           font-family: 'DM Sans', sans-serif;
           font-size: 13px;
@@ -540,10 +539,13 @@ export default function RegisterPage() {
           <div className="top-accent" />
 
           <div className="fade-up">
+
             {/* Logo */}
             <div className="logo-row">
-              <div className="logo-box"><span>RE</span></div>
-              <span className="logo-text">RealEstate</span>
+              <div className="logo-box">
+                <img src="/alfima.png" alt="Alfima" />
+              </div>
+              <span className="logo-text">Alfima Realty Inc.</span>
             </div>
 
             {/* Heading */}

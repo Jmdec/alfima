@@ -2,196 +2,256 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
-import { X, Send, HeadphonesIcon, Phone, Clock, User, MessageSquare } from 'lucide-react';
+import { X, Send, HeadphonesIcon, Phone, Clock, User, MessageSquare, MapPin } from 'lucide-react';
 import { useAuth } from '@/lib/store';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 type SenderType = 'user' | 'admin' | 'bot';
-
-type Message = {
-  id: string;
-  text: string;
-  sender: SenderType;
-  suggestions?: string[];
-};
-
+type Message = { id: string; text: string; sender: SenderType; suggestions?: string[]; properties?: Property[] };
 type ChatPhase = 'ask-name' | 'bot' | 'human' | 'loading';
 
-// ─── All API calls go through Next.js routes — ZERO CORS issues ───────────────
-// Browser → /api/chat/* (Next.js) → Laravel (server-to-server, no CORS)
 const CHAT_API = '/api/chat';
 const POLL_MS  = 4000;
 
-// ─── Session storage ──────────────────────────────────────────────────────────
-const TOKEN_KEY = 'alfima_chat_token';
-const SID_KEY   = 'alfima_chat_session_id';
+// ─── Contact Details ──────────────────────────────────────────────────────────
+const CONTACT = {
+  phone:    '+63 917 174 2419',
+  email:    'ABMacalincag@alfimarealtyinc.com',
+  address:  '10th Floor IBP Tower, Jade Drive, Brgy San Antonio, Pasig, Philippines',
+  hours:    'Mon–Sat 8AM–6PM',
+};
 
-function getToken(): string | null {
+// ─── Property type ────────────────────────────────────────────────────────────
+interface Property {
+  id: number;
+  title: string;
+  price: number;
+  listing_type: 'for_sale' | 'for_rent';
+  property_type: string;
+  city: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  area?: number;
+  slug?: string;
+  images?: { url: string }[];
+}
+
+// ─── User-scoped token storage ────────────────────────────────────────────────
+function tokenKey(userId?: number | string | null): string {
+  return userId ? `alfima_chat_token_u${userId}` : 'alfima_chat_token_guest';
+}
+function getToken(userId?: number | string | null): string | null {
   if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(tokenKey(userId));
 }
-function saveToken(token: string, sid: number) {
-  sessionStorage.setItem(TOKEN_KEY, token);
-  sessionStorage.setItem(SID_KEY, String(sid));
+function saveToken(token: string, sid: number, userId?: number | string | null) {
+  const key = tokenKey(userId);
+  sessionStorage.setItem(key, token);
+  sessionStorage.setItem(`${key}_sid`, String(sid));
 }
-
-// ─── Headers forwarded to Next.js proxy (which forwards to Laravel) ───────────
-function buildHeaders(token?: string | null): Record<string, string> {
-  const h: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept:         'application/json',
-  };
-  const t = token ?? getToken();
+function clearStaleTokens(currentUserId?: number | string | null) {
+  if (typeof window === 'undefined') return;
+  const currentKey = tokenKey(currentUserId);
+  const toRemove: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const k = sessionStorage.key(i);
+    if (!k) continue;
+    if (k.startsWith('alfima_chat_token') && k !== currentKey && !k.endsWith('_sid')) {
+      toRemove.push(k);
+      toRemove.push(`${k}_sid`);
+    }
+  }
+  toRemove.forEach(k => sessionStorage.removeItem(k));
+}
+function wipeToken(userId?: number | string | null) {
+  if (typeof window === 'undefined') return;
+  const k = tokenKey(userId);
+  sessionStorage.removeItem(k);
+  sessionStorage.removeItem(`${k}_sid`);
+}
+function buildHeaders(token?: string | null, userId?: number | string | null): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const t = token ?? getToken(userId);
   if (t) h['X-Chat-Token'] = t;
   const auth = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   if (auth) h['Authorization'] = `Bearer ${auth}`;
   return h;
 }
 
-// ─── Suggestions ──────────────────────────────────────────────────────────────
-const INITIAL_SUGGESTIONS = [
-  'Browse properties for sale',
-  'Find rental properties',
-  'Talk to an agent',
-  'Schedule a viewing',
-  'About Alfima Realty',
-  'Office location & hours',
-];
+// ─── Property fetcher ─────────────────────────────────────────────────────────
+// Strategy: try with full filters first, then progressively relax them
+// so the bot always returns something rather than an empty result.
+async function fetchProperties(params: Record<string, string>): Promise<Property[]> {
+  const attempts: Record<string, string>[] = [];
 
-// ─── Knowledge base ───────────────────────────────────────────────────────────
-type KBEntry = { patterns: string[]; text: string; suggestions: string[] };
+  // Attempt 1: full filters (listing_type + property_type + city + price)
+  attempts.push({ ...params });
 
-const KB: KBEntry[] = [
-  {
-    patterns: ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
-      'musta', 'kumusta', 'magandang', 'helo', 'start', 'greetings'],
-    text: "👋 Hello! Welcome to **Alfima Realty Inc.** — your trusted partner in Philippine real estate!\n\nI can help you with:\n• 🏠 Buying or renting properties\n• 📍 Finding properties by location\n• 💰 Budget & financing options\n• 👨‍💼 Connecting with our agents\n• 📅 Scheduling property viewings\n\nWhat can I help you with today?",
-    suggestions: ['Browse properties for sale', 'Find rental properties', 'Talk to an agent', 'Office location & hours'],
-  },
-  {
-    patterns: ['buy', 'purchase', 'for sale', 'buying', 'invest', 'bilhin', 'properties for sale', 'browse properties'],
-    text: "🏠 Great choice! Alfima Realty has a wide selection:\n\n• **Condominiums** – Studio to 3BR units\n• **House & Lot** – Single detached & townhouses\n• **Commercial Spaces** – Offices, retail, warehouses\n• **Pre-selling Projects** – Lower prices, flexible terms\n\nProperties across Metro Manila, Cavite, Laguna, Bulacan, and Rizal.\n\nWhat's your budget range?",
-    suggestions: ['Under ₱3M', '₱3M–₱8M', '₱8M–₱20M', '₱20M+ Luxury', 'Pre-selling options'],
-  },
-  {
-    patterns: ['rent', 'rental', 'lease', 'renting', 'for rent', 'upa', 'mag-rent', 'monthly'],
-    text: "🏢 Looking for a rental? Here's what we have:\n\n• **Studio / 1BR** – ₱12,000–₱35,000/month\n• **2BR Condos** – ₱25,000–₱65,000/month\n• **3BR Condos** – ₱40,000–₱120,000/month\n• **Townhouses** – ₱18,000–₱55,000/month\n• **Commercial** – ₱15,000–₱200,000/month",
-    suggestions: ['Studio / 1BR rentals', '2BR rentals', 'Family homes for rent', 'Commercial for rent'],
-  },
-  {
-    patterns: ['condo', 'condominium', 'studio', 'flat', 'apartment', 'high rise', 'tower'],
-    text: "🏙️ Our condo listings:\n\n• **Makati CBD** – ₱4M–₱30M\n• **BGC / Taguig** – ₱5M–₱45M\n• **Pasig / Ortigas** – ₱3.5M–₱15M\n• **Quezon City** – ₱2.8M–₱12M\n\nUnit types: Studio → Penthouse. Most include pool, gym, 24/7 security.",
-    suggestions: ['Makati condos', 'BGC condos', 'QC condos', 'Schedule a viewing'],
-  },
-  {
-    patterns: ['house', 'bahay', 'house and lot', 'townhouse', 'single detached', 'subdivision', 'bungalow'],
-    text: "🏡 House & lot options:\n\n**Metro Manila:** QC, Paranaque, Las Pinas – ₱4M–₱30M\n\n**Affordable Suburbs:**\n• Cavite – ₱2.5M–₱15M · Laguna – ₱2.8M–₱14M\n• Bulacan – ₱2.5M–₱10M · Rizal – ₱3M–₱12M",
-    suggestions: ['Cavite house & lot', 'Laguna properties', 'QC homes', 'Schedule a viewing'],
-  },
-  {
-    patterns: ['agent', 'broker', 'talk to agent', 'speak to agent', 'human', 'person', 'staff', 'tulong', 'kausapin'],
-    text: "👨‍💼 I'll connect you with one of our live agents!\n\nYou can also reach us directly:\n📞 **+63 2 8XXX-XXXX**\n📱 **+63 917 XXX-XXXX** (Viber/WhatsApp)\n📧 **hello@alfimarealty.com**\n\n**Office Hours:** Mon–Fri 8AM–6PM, Sat 9AM–5PM",
-    suggestions: ['Schedule a callback', 'Office location', 'Schedule a viewing'],
-  },
-  {
-    patterns: ['view', 'visit', 'tour', 'viewing', 'schedule', 'schedule a viewing', 'tripping', 'mag-visit'],
-    text: "📅 We'd love to show you the property!\n\n**Viewing Hours:**\n• Mon–Fri: 9AM–5PM · Saturday: 9AM–4PM\n• Sunday: By appointment\n\nTell us which property and your preferred date!",
-    suggestions: ['Book a viewing now', 'Virtual tour', 'Talk to an agent'],
-  },
-  {
-    patterns: ['payment', 'downpayment', 'dp', 'loan', 'pag-ibig', 'pagibig', 'bank loan', 'amortization', 'financing'],
-    text: "💳 **Financing Options:**\n\n**Spot Cash** – Best discounts (5–15% off)\n**In-House Financing** – 10–20% DP, no bank approval needed\n**Pag-IBIG** – Up to ₱6.5M, as low as 6.5% interest, 30-year term\n**Bank Loan** – Up to 90% of value, 7–12% p.a.\n\n**Sample:** ₱3M → ~₱16,000/month via Pag-IBIG",
-    suggestions: ['Pag-IBIG details', 'Bank loan process', 'Talk to an agent'],
-  },
-  {
-    patterns: ['makati', 'ayala', 'rockwell', 'legaspi', 'salcedo'],
-    text: "📍 **Makati City** — The Philippines' Financial Capital!\n\n**For Sale:** Studio ₱4.5M–₱8M · 1BR ₱6M–₱15M · 2BR ₱10M–₱30M\n**For Rent:** Studio ₱18K–₱40K/mo · 1BR ₱25K–₱65K/mo\n\n✅ CBD · Best dining · Top schools nearby",
-    suggestions: ['Buy in Makati', 'Rent in Makati', 'Talk to an agent'],
-  },
-  {
-    patterns: ['bgc', 'taguig', 'bonifacio', 'global city', 'mckinley'],
-    text: "📍 **BGC (Bonifacio Global City)** — Most Walkable!\n\n**For Sale:** Studio ₱5M–₱10M · 1BR ₱7M–₱18M · 2BR ₱12M–₱35M\n**For Rent:** Studio ₱22K–₱50K/mo · 1BR ₱35K–₱75K/mo\n\n✅ Pet-friendly · Clean streets · Expat community",
-    suggestions: ['Buy in BGC', 'Rent in BGC', 'Talk to an agent'],
-  },
-  {
-    patterns: ['quezon city', 'qc', 'cubao', 'katipunan', 'diliman', 'eastwood', 'fairview'],
-    text: "📍 **Quezon City** — Metro Manila's Largest City!\n\n**For Sale:** Condos ₱2.8M–₱12M · Houses ₱5M–₱30M\n**For Rent:** Studio ₱10K–₱28K/mo · 1BR ₱15K–₱40K/mo\n\n✅ Near top universities · More space for the price",
-    suggestions: ['Buy in QC', 'Rent in QC', 'Talk to an agent'],
-  },
-  {
-    patterns: ['cavite', 'bacoor', 'imus', 'dasmarinas', 'tagaytay', 'general trias'],
-    text: "📍 **Cavite Province** — Ideal for Families & OFW Investments!\n\n• Bacoor ₱2.5M–₱8M · Imus ₱2.8M–₱7M\n• Dasmarinas ₱2.5M–₱6.5M · Tagaytay ₱3M–₱20M+\n\n✅ Most affordable near Metro · CLEX access",
-    suggestions: ['Cavite properties', 'Tagaytay homes', 'Talk to an agent'],
-  },
-  {
-    patterns: ['laguna', 'sta rosa', 'binan', 'calamba', 'nuvali'],
-    text: "📍 **Laguna Province** — Fast-Growing South Luzon Hub!\n\n• Biñan ₱2.8M–₱7M · Sta. Rosa ₱3M–₱12M\n• Calamba ₱2.8M–₱8M · San Pedro ₱2.5M–₱6M\n\n✅ SLEX/CALAX access · Near industrial zones",
-    suggestions: ['Sta. Rosa properties', 'Nuvali condos', 'Talk to an agent'],
-  },
-  {
-    patterns: ['ofw', 'overseas', 'abroad', 'dubai', 'saudi', 'singapore', 'remittance'],
-    text: "🌍 **OFW Real Estate Investors — We've Got You!**\n\n✅ Virtual tours via Zoom/Viber\n✅ Online document submission\n✅ SPA assistance · Pag-IBIG overseas accepted\n✅ Dollar / remittance payment options\n\n**OFW Specialist:** Jerome Dela Cruz\n📱 +63 917 XXX-XXXX (Viber/WhatsApp)",
-    suggestions: ['OFW-friendly properties', 'Pag-IBIG overseas', 'Talk to OFW specialist'],
-  },
-  {
-    patterns: ['about', 'alfima', 'company', 'who are you', 'licensed', 'legit'],
-    text: "🏢 **Alfima Realty Inc.**\n\n✅ PRC Licensed Brokers\n✅ DHSUD / HLURB Registered\n✅ Accredited by 20+ developers\n✅ 500+ satisfied clients · ₱2B+ in properties sold\n✅ Members of PAREB & REBAP",
-    suggestions: ['Browse properties', 'Talk to an agent', 'Office location'],
-  },
-  {
-    patterns: ['location', 'address', 'office', 'saan', 'where are you', 'map', 'directions'],
-    text: "📍 **Alfima Realty Inc.**\n123 Real Estate Ave., Makati City\nMetro Manila, Philippines\n\n🚇 MRT: Ayala Station (5 min walk)\n\n🕐 Mon–Fri: 8AM–6PM · Saturday: 9AM–5PM\nSunday: Closed",
-    suggestions: ['Call us now', 'Send an email', 'Schedule a viewing'],
-  },
-  {
-    patterns: ['thank', 'thanks', 'salamat', 'okay', 'ok', 'sige', 'noted', 'bye', 'goodbye'],
-    text: "😊 You're welcome! Alfima Realty is always here for you.\n\n📞 **+63 2 8XXX-XXXX**\n📧 **hello@alfimarealty.com**\n\nAnything else I can help you with?",
-    suggestions: ['Browse properties', 'Talk to an agent', 'Schedule a viewing'],
-  },
-  {
-    patterns: ['under 3m', 'below 3m', 'affordable', 'mura', 'budget', 'low cost', 'murang'],
-    text: "💰 **Properties under ₱3M:**\n\n• Studio condos from ₱1.8M (pre-selling)\n• Cavite townhouses ₱2.2M–₱2.9M\n• Laguna townhouses ₱2.5M–₱2.9M\n• Bulacan homes ₱2M–₱2.8M\n\n**Pag-IBIG eligible** — 3% interest, 30-year terms!",
-    suggestions: ['Pag-IBIG financing', 'Pre-selling options', 'Cavite properties', 'Talk to an agent'],
-  },
-  {
-    patterns: ['invest', 'investment', 'roi', 'rental yield', 'passive income', 'airbnb'],
-    text: "📈 **Real Estate Investment Guide:**\n\n✅ Appreciation: 5–10%/year\n✅ Rental yields: 4–9% gross/year\n\n• **Buy & Hold** – Pre-selling → 30–50% gain\n• **Buy-to-Rent** – BGC studio ~6% yield\n• **Airbnb** – BGC 1BR ~8.8% yield\n\n**Top Areas:** BGC, Makati, Sta. Rosa, QC Vertis North",
-    suggestions: ['BGC investment', 'Pre-selling options', 'Rental properties', 'Talk to an agent'],
-  },
-];
-
-function getBotResponse(input: string): { text: string; suggestions: string[] } {
-  const lower = input.toLowerCase().trim();
-  let best: KBEntry | null = null;
-  let bestScore = 0;
-
-  for (const entry of KB) {
-    for (const pattern of entry.patterns) {
-      if (lower.includes(pattern) && pattern.length > bestScore) {
-        bestScore = pattern.length;
-        best = entry;
-      }
-    }
-  }
-  if (best) return { text: best.text, suggestions: best.suggestions };
-
-  const words = lower.split(/\s+/);
-  for (const entry of KB) {
-    for (const pattern of entry.patterns) {
-      for (const word of words) {
-        if (word.length > 3 && pattern.includes(word)) {
-          return { text: entry.text, suggestions: entry.suggestions };
-        }
-      }
-    }
+  // Attempt 2: drop city constraint
+  if (params.city) {
+    const noCity = { ...params };
+    delete noCity.city;
+    attempts.push(noCity);
   }
 
-  return {
-    text: "Thanks for reaching out! 😊 I didn't quite catch that.\n\nHere's what I can help with:\n• 🏠 Buying or renting properties\n• 📍 Properties by location\n• 💰 Budget & financing\n• 👨‍💼 Talk to our agents\n• 📅 Schedule a viewing",
-    suggestions: INITIAL_SUGGESTIONS,
-  };
+  // Attempt 3: drop property_type + city
+  if (params.property_type) {
+    const noType = { ...params };
+    delete noType.property_type;
+    delete noType.city;
+    attempts.push(noType);
+  }
+
+  // Attempt 4: drop price constraints too — just listing_type
+  if (params.listing_type) {
+    const listingOnly = { listing_type: params.listing_type, per_page: params.per_page ?? '3' };
+    attempts.push(listingOnly);
+  }
+
+  // Attempt 5: completely unfiltered — just return anything
+  attempts.push({ per_page: params.per_page ?? '6' });
+
+  for (const attempt of attempts) {
+    try {
+      const qs  = new URLSearchParams(attempt).toString();
+      const res = await fetch(`/api/properties?${qs}`, {
+        headers: { Accept: 'application/json' },
+        cache:   'no-store',
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      // Handle both { data: [...] } and [...] and { properties: [...] }
+      const list: Property[] = Array.isArray(data)
+        ? data
+        : (data.data ?? data.properties ?? data.items ?? []);
+      if (list.length > 0) return list;
+    } catch { /* try next attempt */ }
+  }
+
+  return [];
 }
 
+function formatPrice(price: number, listingType: string): string {
+  if (listingType === 'for_rent') {
+    return `₱${price.toLocaleString('en-PH')}/mo`;
+  }
+  if (price >= 1_000_000) {
+    return `₱${(price / 1_000_000).toFixed(price % 1_000_000 === 0 ? 0 : 1)}M`;
+  }
+  return `₱${price.toLocaleString('en-PH')}`;
+}
+
+// ─── Intent detection ─────────────────────────────────────────────────────────
+interface Intent {
+  listing_type?: 'for_sale' | 'for_rent';
+  property_type?: string;
+  city?: string;
+  min_price?: string;
+  max_price?: string;
+  action?: 'agent' | 'schedule' | 'contact' | 'about' | 'browse';
+}
+
+const CITY_MAP: Record<string, string> = {
+  makati: 'Makati',
+  bgc: 'Taguig', taguig: 'Taguig', 'bonifacio global city': 'Taguig',
+  'quezon city': 'Quezon City', qc: 'Quezon City', cubao: 'Quezon City',
+  pasig: 'Pasig', ortigas: 'Pasig',
+  paranaque: 'Paranaque', 'las pinas': 'Las Pinas', 'las piñas': 'Las Pinas',
+  mandaluyong: 'Mandaluyong', 'san juan': 'San Juan', marikina: 'Marikina',
+  cavite: 'Cavite', bacoor: 'Cavite', dasmarinas: 'Cavite', imus: 'Cavite', tagaytay: 'Tagaytay',
+  laguna: 'Laguna', 'sta rosa': 'Sta. Rosa', calamba: 'Laguna', binan: 'Laguna',
+  bulacan: 'Bulacan', rizal: 'Rizal', antipolo: 'Antipolo',
+  manila: 'Manila', 'metro manila': 'Metro Manila',
+};
+
+const TYPE_MAP: Record<string, string> = {
+  condo: 'condominium', condominium: 'condominium', condominiums: 'condominium', condos: 'condominium',
+  'house and lot': 'house_and_lot', 'house & lot': 'house_and_lot', house: 'house_and_lot', 'single family': 'house_and_lot',
+  townhouse: 'townhouse', townhomes: 'townhouse', townhouses: 'townhouse',
+  lot: 'lot', land: 'lot', vacant: 'lot',
+  commercial: 'commercial', office: 'commercial', warehouse: 'commercial', retail: 'commercial',
+};
+
+function detectIntent(text: string): Intent {
+  const lower = text.toLowerCase();
+  const intent: Intent = {};
+
+  // Listing type
+  if (/\b(buy|for sale|purchase|bilhin|pre-selling|preselling|bibili|nabibili)\b/.test(lower)) intent.listing_type = 'for_sale';
+  if (/\b(rent|rental|lease|for rent|upa|mag-rent|inuupahan|paupahan)\b/.test(lower))           intent.listing_type = 'for_rent';
+
+  // Generic browse triggers — default to for_sale if no listing type given
+  if (!intent.listing_type && /\b(browse|show|list|properties|presyo|ano|what|find|looking|search|available)\b/.test(lower)) {
+    intent.listing_type = 'for_sale'; // default to sale listings
+  }
+
+  // Property type
+  for (const [kw, type] of Object.entries(TYPE_MAP)) {
+    if (lower.includes(kw)) { intent.property_type = type; break; }
+  }
+
+  // City
+  for (const [kw, city] of Object.entries(CITY_MAP)) {
+    if (lower.includes(kw)) { intent.city = city; break; }
+  }
+
+  // Budget parsing
+  const budget3m  = /under\s*[₱p]?\s*3\s*m/i.test(lower);
+  const budget8m  = /[₱p]?\s*3\s*m?\s*[–-]\s*[₱p]?\s*8\s*m/i.test(lower);
+  const budget20m = /[₱p]?\s*8\s*m?\s*[–-]\s*[₱p]?\s*20\s*m/i.test(lower);
+  const luxury    = /20\s*m\+|luxury/i.test(lower);
+  if (budget3m)  { intent.max_price = '3000000'; }
+  if (budget8m)  { intent.min_price = '3000000'; intent.max_price = '8000000'; }
+  if (budget20m) { intent.min_price = '8000000'; intent.max_price = '20000000'; }
+  if (luxury)    { intent.min_price = '20000000'; }
+
+  const rentStudio = /studio.*rent|1br.*rent|rent.*studio|rent.*1br/i.test(lower);
+  if (rentStudio) { intent.listing_type = 'for_rent'; intent.property_type = 'condominium'; }
+
+  // Actions (only set if no property search intent already detected)
+  if (/\b(agent|broker|speak|talk|human|live|kausap|call)\b/.test(lower))          intent.action = 'agent';
+  if (/\b(schedule|viewing|visit|tour|tripping|mag-visit)\b/.test(lower))           intent.action = 'schedule';
+  if (/\b(contact|address|location|office|saan|where|map)\b/.test(lower))           intent.action = 'contact';
+  if (/\b(about|who are you|alfima|licensed|legit)\b/.test(lower))                  intent.action = 'about';
+
+  return intent;
+}
+
+// ─── Static responses (for non-property intents) ──────────────────────────────
+function getStaticResponse(intent: Intent, name: string): { text: string; suggestions: string[] } | null {
+  switch (intent.action) {
+    case 'contact':
+      return {
+        text: `📍 **Alfima Realty Inc.**\n${CONTACT.address}\nMetro Manila, Philippines\n\n📞 **${CONTACT.phone}**\n📧 **${CONTACT.email}**\n\n🕐 ${CONTACT.hours} · Sunday: By appointment`,
+        suggestions: withBack(['Call us now', 'Browse properties for sale', 'Schedule a viewing']),
+      };
+    case 'schedule':
+      return {
+        text: `📅 We'd love to show you the property!\n\n**Viewing Hours:**\n• Mon–Fri: 9AM–5PM · Saturday: 9AM–4PM\n• Sunday: By appointment\n\nTell us which property and your preferred date, or talk to one of our agents!`,
+        suggestions: withBack(['Talk to an agent', 'Browse properties for sale', 'Find rental properties']),
+      };
+    case 'about':
+      return {
+        text: `🏢 **Alfima Realty Inc.**\n\n✅ PRC Licensed Brokers\n✅ DHSUD / HLURB Registered\n✅ Accredited by 20+ developers\n✅ 500+ satisfied clients\n✅ Members of PAREB & REBAP\n\n📍 ${CONTACT.address}\n📞 ${CONTACT.phone}\n📧 ${CONTACT.email}`,
+        suggestions: withBack(['Browse properties', 'Talk to an agent', 'Office location']),
+      };
+    default:
+      return null;
+  }
+}
+
+const INITIAL_SUGGESTIONS = [
+  'Browse properties for sale', 'Find rental properties',
+  'Talk to an agent', 'Schedule a viewing',
+  'About Alfima Realty', 'Office location & hours',
+];
+
+const BACK_CHIP = '← Back to main menu';
+function withBack(suggestions: string[]): string[] {
+  if (suggestions.includes(BACK_CHIP)) return suggestions;
+  return [...suggestions, BACK_CHIP];
+}
+
+// ─── Formatting helpers ───────────────────────────────────────────────────────
 function FormatText({ text }: { text: string }) {
   return (
     <>
@@ -206,6 +266,45 @@ function FormatText({ text }: { text: string }) {
         </span>
       ))}
     </>
+  );
+}
+
+function PropertyCards({ properties }: { properties: Property[] }) {
+  if (!properties.length) return null;
+  return (
+    <div className="flex flex-col gap-2 mt-2 w-full max-w-[90%]">
+      {properties.slice(0, 3).map(p => (
+        <a
+          key={p.id}
+          href={p.slug ? `/properties/${p.slug}` : `/properties/${p.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-red-500/40 hover:bg-white/10 transition-all group"
+        >
+          {p.images?.[0]?.url && (
+            <img
+              src={p.images[0].url}
+              alt={p.title}
+              className="w-full h-24 object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+            />
+          )}
+          <div className="px-3 py-2">
+            <p className="text-white text-xs font-semibold leading-tight line-clamp-2">{p.title}</p>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-red-400 text-xs font-bold">{formatPrice(p.price, p.listing_type)}</span>
+              <span className="text-white/40 text-[10px] flex items-center gap-0.5">
+                <MapPin className="w-2.5 h-2.5" />{p.city}
+              </span>
+            </div>
+            {(p.bedrooms != null || p.area != null) && (
+              <p className="text-white/40 text-[10px] mt-0.5">
+                {p.bedrooms != null ? `${p.bedrooms}BR` : ''}{p.bedrooms != null && p.bathrooms != null ? ` · ${p.bathrooms}BA` : ''}{p.area ? ` · ${p.area}sqm` : ''}
+              </p>
+            )}
+          </div>
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -224,20 +323,20 @@ export function Chatbot() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [unreadCount,  setUnreadCount]  = useState(0);
 
-  const messagesEndRef  = useRef<HTMLDivElement>(null);
-  const inputRef        = useRef<HTMLInputElement>(null);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastMsgIdRef    = useRef<number>(0);
-  const isPollingRef    = useRef(false);
-  const isOpenRef       = useRef(false);
+  const messagesEndRef   = useRef<HTMLDivElement>(null);
+  const inputRef         = useRef<HTMLInputElement>(null);
+  const pollIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastMsgIdRef     = useRef<number>(0);
+  const isPollingRef     = useRef(false);
+  const isOpenRef        = useRef(false);
+  const tokenRef         = useRef<string | null>(null);
+  const sessionUserIdRef = useRef<number | string | null | undefined>(undefined);
+  const prevUserIdRef    = useRef<number | string | null | undefined>(undefined);
 
-  // Keep isOpenRef in sync so polling closure sees current value
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
-
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -246,27 +345,37 @@ export function Chatbot() {
   }, [isOpen]);
 
   useEffect(() => {
+    if (prevUserIdRef.current !== undefined) wipeToken(prevUserIdRef.current);
+    clearStaleTokens(user?.id);
+    prevUserIdRef.current    = user?.id;
+    tokenRef.current         = null;
+    sessionUserIdRef.current = user?.id;
+    setMessages([]);
+    setGuestName('');
+    setNameInput('');
+    setUnreadCount(0);
+    lastMsgIdRef.current = 0;
+    stopPolling();
     initSession();
     return () => stopPolling();
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Polling via Next.js route ─────────────────────────────────────────────────
+  // ── Polling ───────────────────────────────────────────────────────────────
   const startPolling = useCallback((token: string) => {
+    tokenRef.current = token;
     stopPolling();
     pollIntervalRef.current = setInterval(async () => {
       if (isPollingRef.current) return;
       isPollingRef.current = true;
       try {
-        // Calls /api/chat/messages (Next.js) → Laravel — no CORS
-        const res  = await fetch(
+        const res = await fetch(
           `${CHAT_API}/messages?after=${lastMsgIdRef.current}`,
-          { headers: buildHeaders(token) }
+          { headers: buildHeaders(tokenRef.current, sessionUserIdRef.current) }
         );
         if (!res.ok) return;
-
-        const data     = await res.json();
+        const data        = await res.json();
         const msgs: any[] = data.messages ?? [];
-        if (msgs.length === 0) return;
+        if (!msgs.length) return;
 
         const maxId = Math.max(...msgs.map((m: any) => m.id));
         if (maxId > lastMsgIdRef.current) lastMsgIdRef.current = maxId;
@@ -278,7 +387,7 @@ export function Chatbot() {
             const fresh = adminMsgs
               .filter((m: any) => !existingIds.has(String(m.id)))
               .map((m: any) => ({ id: String(m.id), text: m.message, sender: 'admin' as SenderType }));
-            return fresh.length > 0 ? [...prev, ...fresh] : prev;
+            return fresh.length ? [...prev, ...fresh] : prev;
           });
           setPhase('human');
           if (!isOpenRef.current) setUnreadCount(c => c + adminMsgs.length);
@@ -296,27 +405,37 @@ export function Chatbot() {
     }
   }
 
-  // ── Init session via Next.js route ────────────────────────────────────────────
+  // ── Init / resume session ─────────────────────────────────────────────────
   const initSession = useCallback(async () => {
     setPhase('loading');
     try {
-      const existingToken = getToken();
-
-      // POST /api/chat/session (Next.js proxy)
+      const existingToken = getToken(user?.id);
       const sessRes  = await fetch(`${CHAT_API}/session`, {
         method:  'POST',
-        headers: buildHeaders(existingToken),
+        headers: buildHeaders(existingToken, user?.id),
         body:    JSON.stringify({}),
       });
       const sessData = await sessRes.json();
 
-      saveToken(sessData.session_token, sessData.session_id);
-      setSessionToken(sessData.session_token);
+      if (user?.id && sessData.user_id && String(sessData.user_id) !== String(user.id)) {
+        sessionStorage.removeItem(tokenKey(user.id));
+        const freshRes  = await fetch(`${CHAT_API}/session`, {
+          method:  'POST',
+          headers: buildHeaders(null, user?.id),
+          body:    JSON.stringify({}),
+        });
+        const freshData = await freshRes.json();
+        saveToken(freshData.session_token, freshData.session_id, user?.id);
+        setSessionToken(freshData.session_token);
+        tokenRef.current = freshData.session_token;
+        Object.assign(sessData, freshData);
+      } else {
+        saveToken(sessData.session_token, sessData.session_id, user?.id);
+        setSessionToken(sessData.session_token);
+        tokenRef.current = sessData.session_token;
+      }
 
-      // GET /api/chat/messages (Next.js proxy)
-      const msgRes  = await fetch(`${CHAT_API}/messages`, {
-        headers: buildHeaders(sessData.session_token),
-      });
+      const msgRes  = await fetch(`${CHAT_API}/messages`, { headers: buildHeaders(sessData.session_token, user?.id) });
       const msgData = await msgRes.json();
       const history: any[] = msgData.messages ?? [];
 
@@ -329,23 +448,20 @@ export function Chatbot() {
         })));
         setPhase(history.some((m: any) => m.sender_type === 'admin') ? 'human' : 'bot');
       } else {
-        if (!user && !sessData.guest_name) {
+        const savedName = sessData.guest_name ?? null;
+        if (!user && !savedName) {
           setPhase('ask-name');
           addLocalBotMsg(
             "👋 Welcome to **Alfima Realty Inc.**!\n\nBefore we start, what's your name? This helps our agents assist you better. 😊",
-            [],
-            false,
-            sessData.session_token
+            [], false, sessData.session_token
           );
         } else {
-          const name = user?.name ?? sessData.guest_name ?? '';
-          if (sessData.guest_name) setGuestName(sessData.guest_name);
+          const name = user?.name ?? savedName ?? '';
+          if (savedName) setGuestName(savedName);
           setPhase('bot');
           addLocalBotMsg(
-            `👋 Hello${name ? ', **' + name + '**' : ''}! Welcome to **Alfima Realty Inc.**!\n\nI can help you find your dream property. What are you looking for today?`,
-            INITIAL_SUGGESTIONS,
-            true,
-            sessData.session_token
+            `👋 Hello${name ? ', **' + name + '**' : ''}! Welcome to **Alfima Realty Inc.**!\n\nI can help you find your dream property across Metro Manila and nearby provinces. What are you looking for today?`,
+            INITIAL_SUGGESTIONS, true, sessData.session_token
           );
         }
       }
@@ -359,72 +475,191 @@ export function Chatbot() {
     }
   }, [user, startPolling]);
 
-  function addLocalBotMsg(text: string, suggestions: string[], save: boolean, token: string | null) {
-    setMessages(prev => [...prev, { id: `bot-${Date.now()}`, text, sender: 'bot', suggestions }]);
+  function addLocalBotMsg(
+    text: string,
+    suggestions: string[],
+    save: boolean,
+    token: string | null,
+    properties?: Property[]
+  ) {
+    setMessages(prev => [...prev, { id: `bot-${Date.now()}`, text, sender: 'bot', suggestions, properties }]);
     if (save) {
-      const t = token ?? getToken();
+      const t = token ?? tokenRef.current ?? getToken(sessionUserIdRef.current);
       if (!t) return;
-      // POST /api/chat/bot-message (Next.js proxy)
       fetch(`${CHAT_API}/bot-message`, {
-        method:  'POST',
-        headers: buildHeaders(t),
-        body:    JSON.stringify({ message: text }),
+        method: 'POST', headers: buildHeaders(t, sessionUserIdRef.current), body: JSON.stringify({ message: text }),
       }).catch(() => {});
     }
   }
 
+  // ── Name submit ───────────────────────────────────────────────────────────
   const handleNameSubmit = async () => {
     const name = nameInput.trim();
     if (!name) return;
     setNameInput('');
     setGuestName(name);
-    // POST /api/chat/session (Next.js proxy)
-    fetch(`${CHAT_API}/session`, {
-      method:  'POST',
-      headers: buildHeaders(),
-      body:    JSON.stringify({ guest_name: name }),
-    }).catch(() => {});
+    const token = tokenRef.current ?? getToken(sessionUserIdRef.current);
+    if (token) {
+      try {
+        await fetch(`${CHAT_API}/session`, {
+          method:  'POST',
+          headers: buildHeaders(token, sessionUserIdRef.current),
+          body:    JSON.stringify({ guest_name: name }),
+        });
+      } catch { /* ignore */ }
+    }
     setMessages(prev => [...prev, { id: `user-name-${Date.now()}`, text: name, sender: 'user' }]);
     setPhase('bot');
     setTimeout(() => {
       addLocalBotMsg(
         `Nice to meet you, **${name}**! 😊\n\nWelcome to **Alfima Realty Inc.**! What are you looking for today?`,
-        INITIAL_SUGGESTIONS, true, null
+        INITIAL_SUGGESTIONS, true, token
       );
     }, 600);
   };
 
+  // ── Agent availability check ──────────────────────────────────────────────
+  const handleTalkToAgent = useCallback(async (token: string | null) => {
+    try {
+      const res  = await fetch(`${CHAT_API}/agent-status`, { headers: buildHeaders(token, sessionUserIdRef.current) });
+      const data = await res.json();
+      if (data.available) {
+        addLocalBotMsg(
+          "✅ Great news! **Our agents are online right now.**\n\nI've notified them — someone will join this chat shortly!",
+          [], true, token
+        );
+      } else {
+        addLocalBotMsg(
+          `🕐 Our agents are **currently offline**.\n\nPlease leave your message and we'll get back to you!\n\n📞 **${CONTACT.phone}**\n📧 **${CONTACT.email}**`,
+          withBack(['Leave a message', 'Browse properties for sale', 'Find rental properties']), true, token
+        );
+      }
+    } catch {
+      addLocalBotMsg(
+        "🔔 I've notified our agents. Someone will join shortly!",
+        [], true, token
+      );
+    }
+  }, []);
+
+  // ── Core send logic ───────────────────────────────────────────────────────
   const sendMessage = async (text: string) => {
     if (!text.trim() || isTyping || phase === 'ask-name') return;
+
+    // Back to menu shortcut
+    if (text === BACK_CHIP || text.toLowerCase().includes('back to main menu') || text.toLowerCase() === 'main menu') {
+      setMessages(prev => [...prev, { id: `user-${Date.now()}`, text, sender: 'user' }]);
+      const token = tokenRef.current ?? getToken(sessionUserIdRef.current);
+      if (token) fetch(`${CHAT_API}/message`, { method: 'POST', headers: buildHeaders(token, sessionUserIdRef.current), body: JSON.stringify({ message: text }) }).catch(() => {});
+      setIsTyping(true);
+      setTimeout(() => {
+        const name = user?.name ?? guestName;
+        addLocalBotMsg(
+          `What else can I help you with${name ? `, **${name}**` : ''}? 😊`,
+          INITIAL_SUGGESTIONS, true, token
+        );
+        setIsTyping(false);
+      }, 400);
+      return;
+    }
+
     setInput('');
     setMessages(prev => [...prev, { id: `user-${Date.now()}`, text, sender: 'user' }]);
 
-    const token = sessionToken ?? getToken();
+    const token = tokenRef.current ?? getToken(sessionUserIdRef.current);
     if (token) {
-      // POST /api/chat/message (Next.js proxy)
       fetch(`${CHAT_API}/message`, {
-        method:  'POST',
-        headers: buildHeaders(token),
-        body:    JSON.stringify({ message: text }),
+        method: 'POST', headers: buildHeaders(token, sessionUserIdRef.current), body: JSON.stringify({ message: text }),
       }).catch(() => {});
     }
 
-    if (phase === 'bot') {
-      setIsTyping(true);
+    if (phase !== 'bot') return; // human phase — just forward to server
+
+    const intent = detectIntent(text);
+
+    const wantsHuman = intent.action === 'agent' || [
+      'talk to agent', 'talk to an agent', 'speak to agent', 'speak to an agent',
+      'kausapin', 'human agent', 'live agent', 'real person',
+    ].some(p => text.toLowerCase().includes(p));
+
+    setIsTyping(true);
+
+    // ── Pure static actions (contact / about / schedule) with NO property signals
+    const hasPropertySignal = intent.listing_type || intent.property_type || intent.city || intent.min_price || intent.max_price;
+    const staticResp = getStaticResponse(intent, guestName || user?.name || '');
+    if (staticResp && !hasPropertySignal) {
       setTimeout(() => {
-        const response = getBotResponse(text);
-        addLocalBotMsg(response.text, response.suggestions, true, token);
+        addLocalBotMsg(staticResp.text, withBack(staticResp.suggestions), true, token);
         setIsTyping(false);
-        const wantsHuman = ['agent', 'human', 'talk to agent', 'speak to agent', 'kausapin', 'person', 'staff']
-          .some(p => text.toLowerCase().includes(p));
-        if (wantsHuman) {
-          setTimeout(() => {
-            addLocalBotMsg(
-              "🔔 I've notified our agents. Someone will join this chat shortly!\n\nFeel free to share more details about what you're looking for.",
-              [], true, token
-            );
-          }, 800);
+        if (wantsHuman) setTimeout(() => handleTalkToAgent(token), 800);
+      }, 700);
+      return;
+    }
+
+    // ── Wants agent only (no property query) ──────────────────────────────
+    if (wantsHuman && !hasPropertySignal) {
+      setTimeout(() => {
+        addLocalBotMsg("Sure! Let me connect you with one of our agents. 👨‍💼", [], true, token);
+        setIsTyping(false);
+        setTimeout(() => handleTalkToAgent(token), 800);
+      }, 500);
+      return;
+    }
+
+    // ── Property search — ALWAYS try to fetch, fallback chain built into fetchProperties
+    const params: Record<string, string> = { per_page: '3' };
+    if (intent.listing_type)  params.listing_type  = intent.listing_type;
+    if (intent.property_type) params.property_type = intent.property_type;
+    if (intent.city)          params.city          = intent.city;
+    if (intent.min_price)     params.min_price     = intent.min_price;
+    if (intent.max_price)     params.max_price     = intent.max_price;
+
+    try {
+      const properties = await fetchProperties(params);
+
+      setTimeout(() => {
+        if (properties.length > 0) {
+          // Build a natural label based on what was found vs what was asked
+          const foundType   = properties[0].property_type?.replace(/_/g, ' ') ?? '';
+          const askedType   = intent.property_type?.replace(/_/g, ' ') ?? '';
+          const askedCity   = intent.city ?? '';
+          const foundCity   = properties[0].city ?? '';
+          const typeLabel   = askedType || foundType;
+          const listLabel   = intent.listing_type === 'for_rent' ? 'for rent' : 'for sale';
+          const cityLabel   = askedCity
+            ? askedCity === foundCity
+              ? ` in **${askedCity}**`
+              : ` — showing results near **${foundCity}** (no exact match for ${askedCity})`
+            : '';
+          const budgetLabel = intent.max_price && !intent.min_price
+            ? ` under ₱${(parseInt(intent.max_price) / 1_000_000).toFixed(0)}M`
+            : intent.min_price && intent.max_price
+            ? ` ₱${(parseInt(intent.min_price) / 1_000_000).toFixed(0)}M–₱${(parseInt(intent.max_price) / 1_000_000).toFixed(0)}M`
+            : '';
+
+          addLocalBotMsg(
+            `🏠 Here are some **${typeLabel} ${listLabel}${cityLabel}${budgetLabel}** for you:`,
+            withBack(['Browse all properties', 'Schedule a viewing', 'Talk to an agent']),
+            true, token, properties
+          );
+        } else {
+          // Truly nothing found — still give agent option prominently
+          addLocalBotMsg(
+            `😔 I couldn't find listings matching that search right now, but our portfolio is updated regularly!\n\nOur agents may have **exclusive off-market listings** — want me to connect you with one?`,
+            withBack(['Talk to an agent', 'Browse properties for sale', 'Find rental properties']),
+            true, token
+          );
         }
+        setIsTyping(false);
+        if (wantsHuman) setTimeout(() => handleTalkToAgent(token), 800);
+      }, 800);
+    } catch {
+      setTimeout(() => {
+        addLocalBotMsg(
+          `😔 Had trouble loading listings just now. Please try again or talk to our agents!\n\n📞 **${CONTACT.phone}**`,
+          withBack(['Try again', 'Talk to an agent']), true, token
+        );
+        setIsTyping(false);
       }, 700);
     }
   };
@@ -454,18 +689,26 @@ export function Chatbot() {
                 </div>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition text-white">
+            <button
+              onClick={() => setIsOpen(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition text-white"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Sub-header */}
           <div className="bg-red-900/80 px-4 py-2 flex items-center gap-4 flex-shrink-0 border-b border-white/5">
-            <div className="flex items-center gap-1 text-red-200 text-xs"><Phone className="w-3 h-3" /><span>+63 2 8XXX-XXXX</span></div>
-            <div className="flex items-center gap-1 text-red-200 text-xs"><Clock className="w-3 h-3" /><span>Mon–Sat 8AM–6PM</span></div>
+            <div className="flex items-center gap-1 text-red-200 text-xs">
+              <Phone className="w-3 h-3" /><span>{CONTACT.phone}</span>
+            </div>
+            <div className="flex items-center gap-1 text-red-200 text-xs">
+              <Clock className="w-3 h-3" /><span>{CONTACT.hours}</span>
+            </div>
             {displayName && (
               <div className="flex items-center gap-1 text-red-200 text-xs ml-auto">
-                <User className="w-3 h-3" /><span className="max-w-[80px] truncate">{displayName}</span>
+                <User className="w-3 h-3" />
+                <span className="max-w-[80px] truncate">{displayName}</span>
               </div>
             )}
           </div>
@@ -479,7 +722,9 @@ export function Chatbot() {
             ) : (
               messages.map(msg => (
                 <div key={msg.id} className={`flex flex-col gap-2 ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                  {msg.sender === 'admin' && <span className="text-[10px] text-red-400/70 px-1">Alfima Agent</span>}
+                  {msg.sender === 'admin' && (
+                    <span className="text-[10px] text-red-400/70 px-1">Alfima Agent</span>
+                  )}
                   <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                     msg.sender === 'user'
                       ? 'bg-red-600 text-white rounded-br-sm'
@@ -489,12 +734,20 @@ export function Chatbot() {
                   }`}>
                     <FormatText text={msg.text} />
                   </div>
+
+                  {msg.sender !== 'user' && msg.properties && msg.properties.length > 0 && (
+                    <PropertyCards properties={msg.properties} />
+                  )}
+
                   {msg.sender !== 'user' && msg.suggestions && msg.suggestions.length > 0 && (
                     <div className="flex flex-wrap gap-2 max-w-[90%]">
                       {msg.suggestions.map(s => (
-                        <button key={s} onClick={() => sendMessage(s)}
+                        <button
+                          key={s}
+                          onClick={() => sendMessage(s)}
                           disabled={isTyping || phase === 'ask-name' || phase === 'loading'}
-                          className="text-xs px-3 py-1.5 rounded-full border border-red-500/40 text-red-300 hover:bg-red-600/20 hover:border-red-400 hover:text-white transition-all bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed">
+                          className="text-xs px-3 py-1.5 rounded-full border border-red-500/40 text-red-300 hover:bg-red-600/20 hover:border-red-400 hover:text-white transition-all bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
                           {s}
                         </button>
                       ))}
@@ -503,6 +756,7 @@ export function Chatbot() {
                 </div>
               ))
             )}
+
             {isTyping && (
               <div className="flex items-start">
                 <div className="bg-white/10 border border-white/5 rounded-2xl rounded-bl-sm px-4 py-3">
@@ -523,40 +777,59 @@ export function Chatbot() {
               <div className="flex gap-2 items-center">
                 <div className="flex items-center gap-2 flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
                   <User className="w-4 h-4 text-white/30 flex-shrink-0" />
-                  <input ref={inputRef} type="text" placeholder="Enter your name…"
-                    value={nameInput} onChange={e => setNameInput(e.target.value)}
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    placeholder="Enter your name…"
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleNameSubmit()}
                     className="flex-1 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none"
-                    maxLength={60} />
+                    maxLength={60}
+                  />
                 </div>
-                <button onClick={handleNameSubmit} disabled={!nameInput.trim()}
-                  className="w-9 h-9 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white rounded-xl flex items-center justify-center transition-all">
+                <button
+                  onClick={handleNameSubmit}
+                  disabled={!nameInput.trim()}
+                  className="w-9 h-9 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white rounded-xl flex items-center justify-center transition-all"
+                >
                   <Send className="w-4 h-4" />
                 </button>
               </div>
             ) : (
               <div className="flex gap-2 items-center">
-                <input ref={inputRef} type="text"
+                <input
+                  ref={inputRef}
+                  type="text"
                   placeholder={phase === 'human' ? 'Reply to your agent…' : 'Ask about properties, areas, prices…'}
-                  value={input} onChange={e => setInput(e.target.value)}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendMessage(input)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-red-500/50 transition-all" />
-                <button onClick={() => sendMessage(input)} disabled={!input.trim() || isTyping}
-                  className="w-9 h-9 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white rounded-xl flex items-center justify-center transition-all flex-shrink-0">
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-red-500/50 transition-all"
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={!input.trim() || isTyping}
+                  className="w-9 h-9 bg-red-600 hover:bg-red-500 disabled:opacity-30 text-white rounded-xl flex items-center justify-center transition-all flex-shrink-0"
+                >
                   <Send className="w-4 h-4" />
                 </button>
               </div>
             )}
             <p className="text-white/20 text-xs text-center mt-2">
-              {phase === 'human' ? "💬 You're chatting with a live agent" : 'Alfima Realty Inc. · Makati City, Philippines'}
+              {phase === 'human'
+                ? "💬 You're chatting with a live agent"
+                : 'Alfima Realty Inc. · Pasig City, Philippines'}
             </p>
           </div>
         </div>
       )}
 
       {/* FAB */}
-      <button onClick={() => setIsOpen(o => !o)}
-        className="relative w-14 h-14 rounded-full bg-gradient-to-br from-red-700 to-red-800 text-white shadow-xl shadow-red-900/50 hover:shadow-red-700/50 hover:scale-110 transition-all duration-300 flex items-center justify-center border border-red-500/30">
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className="relative w-14 h-14 rounded-full bg-gradient-to-br from-red-700 to-red-800 text-white shadow-xl shadow-red-900/50 hover:shadow-red-700/50 hover:scale-110 transition-all duration-300 flex items-center justify-center border border-red-500/30"
+      >
         {isOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
         {!isOpen && unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border-2 border-neutral-950">

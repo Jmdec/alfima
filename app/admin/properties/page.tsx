@@ -9,6 +9,15 @@ import {
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+interface PropertyAmenity {
+  id: number;
+  name: string;
+}
+
+interface PropertyFeatures {
+  id: number;
+  name: string;
+}
 
 interface PropertyImage {
   id: number;
@@ -19,6 +28,7 @@ interface PropertyImage {
 interface Property {
   id: number;
   title: string;
+  description: string;
   listing_type: 'sale' | 'rent';
   property_type: string;
   status: 'active' | 'sold' | 'rented' | 'inactive';
@@ -32,6 +42,8 @@ interface Property {
   thumbnail: string | null;
   images?: PropertyImage[];
   created_at: string;
+  amenities?: Array<PropertyAmenity | string>;
+  features?: Array<PropertyFeatures | string>;
 }
 
 interface PaginatedResponse {
@@ -69,6 +81,28 @@ function formatNumberInput(raw: string): string {
   return Number(digits).toLocaleString('en-PH');
 }
 function stripCommas(val: string): string { return val.replace(/,/g, ''); }
+
+/**
+ * FIX: Normalize a string for comparison — lowercase + collapse whitespace.
+ * This ensures API-returned names like "gym / fitness center" match
+ * the option label "Gym / Fitness Center".
+ */
+function normalizeLabel(s?: string | null): string {
+  if (typeof s !== 'string') return '';
+  return s.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * FIX: Given a list of raw names from the API and the canonical option list,
+ * return only the canonical option strings that match (case-insensitively).
+ * This prevents phantom selected states from slight casing/spacing differences.
+ */
+function matchToOptions(apiNames: Array<string | undefined | null>, options: string[]): string[] {
+  const normalizedApiNames = apiNames
+    .map(normalizeLabel)
+    .filter(v => v.length > 0);
+  return options.filter(opt => normalizedApiNames.includes(normalizeLabel(opt)));
+}
 
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
 
@@ -132,20 +166,46 @@ function ToastList({ toasts, remove }: { toasts: Toast[]; remove: (id: number) =
 // ── Tag Checkbox Group ────────────────────────────────────────────────────────
 
 function TagCheckboxGroup({ options, selected, onChange, accentColor = 'red' }: {
-  options: string[]; selected: string[]; onChange: (vals: string[]) => void; accentColor?: 'red' | 'blue';
+  options: string[];
+  selected: string[];
+  onChange: (vals: string[]) => void;
+  accentColor?: 'red' | 'blue';
 }) {
-  const toggle = (opt: string) =>
-    onChange(selected.includes(opt) ? selected.filter(s => s !== opt) : [...selected, opt]);
-  const on  = accentColor === 'blue' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-red-600 border-red-600 text-white';
+  // FIX: Build a normalized lookup set once per render for O(1) matching
+  const selectedNormalized = new Set(selected.map(normalizeLabel));
+
+  const toggle = (opt: string) => {
+    const key = normalizeLabel(opt);
+    if (selectedNormalized.has(key)) {
+      // Remove by normalized comparison so stale casing is never an issue
+      onChange(selected.filter(s => normalizeLabel(s) !== key));
+    } else {
+      // Always store the canonical option label
+      onChange([...selected, opt]);
+    }
+  };
+
+  const on = accentColor === 'blue'
+    ? 'bg-blue-600 border-blue-600 text-white'
+    : 'bg-red-600 border-red-600 text-white';
   const off = 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-400';
+
   return (
     <div className="flex flex-wrap gap-2">
-      {options.map(opt => (
-        <button key={opt} type="button" onClick={() => toggle(opt)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${selected.includes(opt) ? on : off}`}>
-          {opt}
-        </button>
-      ))}
+      {options.map(opt => {
+        // FIX: Use normalized comparison so API names that differ in case/spacing still highlight
+        const isActive = selectedNormalized.has(normalizeLabel(opt));
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => toggle(opt)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${isActive ? on : off}`}
+          >
+            {opt}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -158,12 +218,12 @@ function PropertyFormModal({
   initial?: Property | null; mode: 'create' | 'edit'; onClose: () => void; onSaved: (msg: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Thumbnail
   const [thumbPreview, setThumbPreview] = useState<string | null>(initial?.thumbnail ?? null);
-  const [thumbFile,    setThumbFile]    = useState<File | null>(null);
-  const thumbRef   = useRef<HTMLInputElement>(null);
+  const [thumbFile, setThumbFile] = useState<File | null>(null);
+  const thumbRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
   // New files to upload
@@ -179,7 +239,7 @@ function PropertyFormModal({
 
   // Price display (comma formatted)
   const [priceDisplay, setPriceDisplay] = useState(
-    initial?.price           ? Number(initial.price).toLocaleString('en-PH')           : ''
+    initial?.price ? Number(initial.price).toLocaleString('en-PH') : ''
   );
   const [rentDisplay, setRentDisplay] = useState(
     initial?.price_per_month ? Number(initial.price_per_month).toLocaleString('en-PH') : ''
@@ -197,20 +257,75 @@ function PropertyFormModal({
     }
   }, []);
 
+  // FIX: Start as empty arrays — populated after full property fetch in edit mode
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
-  const [selectedFeatures,  setSelectedFeatures]  = useState<string[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [fetchingFull, setFetchingFull] = useState(mode === 'edit');
 
   const [form, setForm] = useState({
-    title:         initial?.title         ?? '',
-    listing_type:  initial?.listing_type  ?? 'sale',
+    title: initial?.title ?? '',
+    listing_type: initial?.listing_type ?? 'sale',
     property_type: initial?.property_type ?? 'house',
-    status:        initial?.status        ?? 'active',
-    address:       initial?.address       ?? '',
-    city:          initial?.city          ?? '',
-    bedrooms:      String(initial?.bedrooms  ?? ''),
-    bathrooms:     String(initial?.bathrooms ?? ''),
-    description:   '',
+    status: initial?.status ?? 'active',
+    address: initial?.address ?? '',
+    city: initial?.city ?? '',
+    bedrooms: String(initial?.bedrooms ?? ''),
+    bathrooms: String(initial?.bathrooms ?? ''),
+    description: initial?.description ?? '',
   });
+
+  // FIX: Fetch full property and normalize names against canonical option lists
+  useEffect(() => {
+    if (mode !== 'edit' || !initial?.id) return;
+
+    const normalizeAmenities = (items?: Array<PropertyAmenity | string>): string[] => {
+      const raw = (items ?? []).map((item) => (typeof item === 'string' ? item : item?.name ?? '')).filter(Boolean as any);
+      return matchToOptions(raw, AMENITY_OPTIONS);
+    };
+    const normalizeFeatures = (items?: Array<PropertyFeatures | string>): string[] => {
+      const raw = (items ?? []).map((item) => (typeof item === 'string' ? item : item?.name ?? '')).filter(Boolean as any);
+      return matchToOptions(raw, FEATURE_OPTIONS);
+    };
+
+    setSelectedAmenities(normalizeAmenities(initial?.amenities));
+    setSelectedFeatures(normalizeFeatures(initial?.features));
+
+    setFetchingFull(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/properties/${initial.id}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error ?? `Failed to load property details (${res.status})`);
+        }
+
+        const full: Property = await res.json();
+
+        const rawAmenityNames = (full.amenities ?? []).map((a) => {
+          if (typeof a === 'string') return a;
+          return a?.name ?? '';
+        }).filter(Boolean as any);
+
+        const rawFeatureNames = (full.features ?? []).map((f) => {
+          if (typeof f === 'string') return f;
+          return f?.name ?? '';
+        }).filter(Boolean as any);
+
+        // FIX: matchToOptions normalizes both sides so "gym / fitness center"
+        // from the API correctly highlights "Gym / Fitness Center" in the UI
+        setSelectedAmenities(matchToOptions(rawAmenityNames, AMENITY_OPTIONS));
+        setSelectedFeatures(matchToOptions(rawFeatureNames, FEATURE_OPTIONS));
+
+        setForm(prev => ({ ...prev, description: full.description ?? '' }));
+        setExistingImages((full.images ?? []).map(img => ({ id: img.id, url: img.url })));
+      } catch (err) {
+        console.error('Property fetch error:', err);
+        setError('Failed to load property details.');
+      } finally {
+        setFetchingFull(false);
+      }
+    })();
+  }, [mode, initial?.id, initial?.amenities, initial?.features]);
 
   const setF = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
   const buildArea = () => {
@@ -238,13 +353,14 @@ function PropertyFormModal({
     if (!form.title.trim() || !form.address.trim() || !form.city.trim()) {
       setError('Title, address and city are required.'); return;
     }
+
     if (form.listing_type === 'sale' && !priceDisplay) { setError('Sale price is required.'); return; }
-    if (form.listing_type === 'rent' && !rentDisplay)  { setError('Monthly rent is required.'); return; }
+    if (form.listing_type === 'rent' && !rentDisplay) { setError('Monthly rent is required.'); return; }
 
     setLoading(true); setError(null);
     const fd = new FormData();
 
-    (['title','listing_type','property_type','status','address','city','bedrooms','bathrooms','description'] as const)
+    (['title', 'listing_type', 'property_type', 'status', 'address', 'city', 'bedrooms', 'bathrooms', 'description'] as const)
       .forEach(k => { if (form[k] !== '') fd.append(k, form[k]); });
 
     if (form.listing_type === 'sale') {
@@ -257,30 +373,30 @@ function PropertyFormModal({
 
     const area = buildArea(); if (area) fd.append('area', area);
     selectedAmenities.forEach(a => fd.append('amenities[]', a));
-    selectedFeatures.forEach(f  => fd.append('features[]',  f));
+    selectedFeatures.forEach(f => fd.append('features[]', f));
     if (thumbFile) fd.append('thumbnail', thumbFile);
     galleryFiles.forEach(f => fd.append('images[]', f));
     if (mode === 'edit') fd.append('_method', 'PUT');
 
     try {
-      const url  = mode === 'create' ? '/api/properties' : `/api/properties/${initial!.id}`;
-      const res  = await fetch(url, { method: 'POST', body: fd });
+      const url = mode === 'create' ? '/api/properties' : `/api/properties/${initial!.id}`;
+      const res = await fetch(url, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) { setError(data.message ?? data.error ?? 'Something went wrong.'); return; }
       onSaved(mode === 'create' ? 'Property created!' : 'Property updated!');
       onClose();
     } catch { setError('Network error. Please try again.'); }
-    finally   { setLoading(false); }
+    finally { setLoading(false); }
   };
 
   const inp = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 transition-all';
   const sel = `${inp} appearance-none cursor-pointer`;
   const lbl = 'block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2';
-  const propertyTypes = ['house','condo','townhouse','lot','commercial','warehouse'];
+  const propertyTypes = ['house', 'condo', 'townhouse', 'lot', 'commercial', 'warehouse'];
   const isSale = form.listing_type === 'sale';
   const pricePreview = isSale
     ? (priceDisplay ? `₱${priceDisplay}` : '')
-    : (rentDisplay  ? `₱${rentDisplay}/mo` : '');
+    : (rentDisplay ? `₱${rentDisplay}/mo` : '');
 
   return (
     <>
@@ -306,7 +422,13 @@ function PropertyFormModal({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto relative">
+            {fetchingFull && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center gap-3">
+                <Loader2 className="w-6 h-6 text-red-500 animate-spin" />
+                <span className="text-sm text-slate-500 font-medium">Loading details...</span>
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-3 min-h-full">
 
               {/* ── Left column ── */}
@@ -316,13 +438,12 @@ function PropertyFormModal({
                 <div>
                   <label className={lbl}>Listing Type *</label>
                   <div className="flex gap-2">
-                    {(['sale','rent'] as const).map((t) => (
+                    {(['sale', 'rent'] as const).map((t) => (
                       <button key={t} type="button" onClick={() => setF('listing_type', t)}
-                        className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border ${
-                          form.listing_type === t
-                            ? t === 'sale' ? 'bg-red-600 border-red-600 text-white shadow-md shadow-red-200' : 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
-                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
-                        }`}>
+                        className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all border ${form.listing_type === t
+                          ? t === 'sale' ? 'bg-red-600 border-red-600 text-white shadow-md shadow-red-200' : 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'
+                          }`}>
                         {t === 'sale' ? '🏷 For Sale' : '🔑 For Rent'}
                       </button>
                     ))}
@@ -466,7 +587,7 @@ function PropertyFormModal({
                   <div>
                     <label className={lbl}>Status</label>
                     <select className={sel} value={form.status} onChange={(e) => setF('status', e.target.value)}>
-                      {['active','sold','rented','inactive'].map((s) => (
+                      {['active', 'sold', 'rented', 'inactive'].map((s) => (
                         <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                       ))}
                     </select>
@@ -490,11 +611,10 @@ function PropertyFormModal({
                   <div className="grid grid-cols-3 gap-2">
                     {propertyTypes.map((t) => (
                       <button key={t} type="button" onClick={() => setF('property_type', t)}
-                        className={`py-2.5 px-3 rounded-xl text-sm font-medium capitalize transition-all border ${
-                          form.property_type === t
-                            ? 'bg-slate-800 border-slate-800 text-white'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-400'
-                        }`}>
+                        className={`py-2.5 px-3 rounded-xl text-sm font-medium capitalize transition-all border ${form.property_type === t
+                          ? 'bg-slate-800 border-slate-800 text-white'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-400'
+                          }`}>
                         {t}
                       </button>
                     ))}
@@ -580,8 +700,12 @@ function PropertyFormModal({
                       </span>
                     )}
                   </label>
-                  <TagCheckboxGroup options={AMENITY_OPTIONS} selected={selectedAmenities}
-                    onChange={setSelectedAmenities} accentColor="red" />
+                  <TagCheckboxGroup
+                    options={AMENITY_OPTIONS}
+                    selected={selectedAmenities}
+                    onChange={setSelectedAmenities}
+                    accentColor="red"
+                  />
                   {selectedAmenities.length > 0 && (
                     <button type="button" onClick={() => setSelectedAmenities([])}
                       className="mt-2 text-[11px] text-slate-400 hover:text-red-500 transition-colors">
@@ -600,8 +724,12 @@ function PropertyFormModal({
                       </span>
                     )}
                   </label>
-                  <TagCheckboxGroup options={FEATURE_OPTIONS} selected={selectedFeatures}
-                    onChange={setSelectedFeatures} accentColor="blue" />
+                  <TagCheckboxGroup
+                    options={FEATURE_OPTIONS}
+                    selected={selectedFeatures}
+                    onChange={setSelectedFeatures}
+                    accentColor="blue"
+                  />
                   {selectedFeatures.length > 0 && (
                     <button type="button" onClick={() => setSelectedFeatures([])}
                       className="mt-2 text-[11px] text-slate-400 hover:text-blue-500 transition-colors">
@@ -656,9 +784,9 @@ function ViewModal({ property, onClose }: { property: Property; onClose: () => v
     : (property.price ? `₱${Number(property.price).toLocaleString('en-PH')}` : '—');
 
   const statusStyles: Record<string, string> = {
-    active:   'bg-emerald-100 text-emerald-700 border-emerald-200',
-    sold:     'bg-blue-100 text-blue-700 border-blue-200',
-    rented:   'bg-purple-100 text-purple-700 border-purple-200',
+    active: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    sold: 'bg-blue-100 text-blue-700 border-blue-200',
+    rented: 'bg-purple-100 text-purple-700 border-purple-200',
     inactive: 'bg-slate-100 text-slate-500 border-slate-200',
   };
 
@@ -692,9 +820,8 @@ function ViewModal({ property, onClose }: { property: Property; onClose: () => v
             )}
             <div className="flex items-center gap-2 mb-5 flex-wrap">
               <span className={`text-xs px-3 py-1 rounded-full border font-semibold capitalize ${statusStyles[property.status]}`}>{property.status}</span>
-              <span className={`text-xs px-3 py-1 rounded-full border font-semibold ${
-                property.listing_type === 'rent' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-red-50 text-red-600 border-red-200'
-              }`}>
+              <span className={`text-xs px-3 py-1 rounded-full border font-semibold ${property.listing_type === 'rent' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-red-50 text-red-600 border-red-200'
+                }`}>
                 {property.listing_type === 'rent' ? '🔑 For Rent' : '🏷 For Sale'}
               </span>
               <span className="text-xs px-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-semibold capitalize">{property.property_type}</span>
@@ -702,11 +829,11 @@ function ViewModal({ property, onClose }: { property: Property; onClose: () => v
             <div className="grid grid-cols-2 gap-3">
               {[
                 { icon: DollarSign, label: property.listing_type === 'rent' ? 'Monthly Rent' : 'Selling Price', value: price },
-                { icon: MapPin,     label: 'City',      value: property.city },
-                { icon: Bed,        label: 'Bedrooms',  value: property.bedrooms ?? '—' },
-                { icon: Bath,       label: 'Bathrooms', value: property.bathrooms ?? '—' },
-                { icon: Square,     label: 'Area',      value: property.area ? String(property.area) : '—' },
-                { icon: Calendar,   label: 'Listed',    value: new Date(property.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) },
+                { icon: MapPin, label: 'City', value: property.city },
+                { icon: Bed, label: 'Bedrooms', value: property.bedrooms ?? '—' },
+                { icon: Bath, label: 'Bathrooms', value: property.bathrooms ?? '—' },
+                { icon: Square, label: 'Area', value: property.area ? String(property.area) : '—' },
+                { icon: Calendar, label: 'Listed', value: new Date(property.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) },
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
                   <div className="flex items-center gap-1.5 text-slate-400 text-xs mb-1"><Icon className="w-3.5 h-3.5" />{label}</div>
@@ -728,16 +855,16 @@ function ViewModal({ property, onClose }: { property: Property; onClose: () => v
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AdminPropertiesPage() {
-  const [data,      setData]      = useState<PaginatedResponse | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [page,      setPage]      = useState(1);
-  const [search,    setSearch]    = useState('');
-  const [filters,   setFilters]   = useState({ listing_type: '', property_type: '' });
-  const [modal,     setModal]     = useState<ModalMode>(null);
-  const [selected,  setSelected]  = useState<Property | null>(null);
-  const [deleting,  setDeleting]  = useState<number | null>(null);
+  const [data, setData] = useState<PaginatedResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ listing_type: '', property_type: '' });
+  const [modal, setModal] = useState<ModalMode>(null);
+  const [selected, setSelected] = useState<Property | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [toasts,    setToasts]    = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const toast = (type: Toast['type'], message: string) => {
     const id = Date.now();
@@ -749,8 +876,8 @@ export default function AdminPropertiesPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), per_page: '12' });
-      if (search)                params.set('search',        search);
-      if (filters.listing_type)  params.set('listing_type',  filters.listing_type);
+      if (search) params.set('search', search);
+      if (filters.listing_type) params.set('listing_type', filters.listing_type);
       if (filters.property_type) params.set('property_type', filters.property_type);
       const res = await fetch(`/api/admin/properties?${params}`);
       setData(await res.json());
@@ -779,10 +906,10 @@ export default function AdminPropertiesPage() {
   };
 
   const statusStyles: Record<string, { dot: string; badge: string }> = {
-    active:   { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    sold:     { dot: 'bg-blue-500',    badge: 'bg-blue-50 text-blue-700 border-blue-200' },
-    rented:   { dot: 'bg-purple-500',  badge: 'bg-purple-50 text-purple-700 border-purple-200' },
-    inactive: { dot: 'bg-slate-400',   badge: 'bg-slate-50 text-slate-500 border-slate-200' },
+    active: { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    sold: { dot: 'bg-blue-500', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+    rented: { dot: 'bg-purple-500', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
+    inactive: { dot: 'bg-slate-400', badge: 'bg-slate-50 text-slate-500 border-slate-200' },
   };
 
   return (
@@ -838,7 +965,7 @@ export default function AdminPropertiesPage() {
               value={filters.property_type}
               onChange={(e) => { setFilters(f => ({ ...f, property_type: e.target.value })); setPage(1); }}>
               <option value="">All Property Types</option>
-              {['house','condo','townhouse','lot','commercial','warehouse'].map(t => (
+              {['house', 'condo', 'townhouse', 'lot', 'commercial', 'warehouse'].map(t => (
                 <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
               ))}
             </select>
@@ -847,7 +974,7 @@ export default function AdminPropertiesPage() {
           {/* Table */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="grid grid-cols-[2.5fr_1fr_1.2fr_1fr_1fr_120px] gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50">
-              {['Property','Category','Price','Location','Status','Actions'].map(h => (
+              {['Property', 'Category', 'Price', 'Location', 'Status', 'Actions'].map(h => (
                 <span key={h} className="text-xs font-bold text-slate-400 uppercase tracking-widest">{h}</span>
               ))}
             </div>
@@ -888,9 +1015,8 @@ export default function AdminPropertiesPage() {
                         <div className="min-w-0">
                           <p className="text-slate-800 text-sm font-bold truncate">{p.title}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                              p.listing_type === 'rent' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'
-                            }`}>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${p.listing_type === 'rent' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'
+                              }`}>
                               {p.listing_type === 'rent' ? 'For Rent' : 'For Sale'}
                             </span>
                             <p className="text-slate-400 text-xs truncate">{p.address}</p>

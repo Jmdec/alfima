@@ -80,10 +80,13 @@ function LoginContent() {
         .stat-num { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600; color: #c9a84c; line-height: 1; margin-bottom: 4px; }
         .stat-label { font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.35); letter-spacing: 0.12em; text-transform: uppercase; }
         .form-panel { width: 100%; max-width: 480px; background: #faf7f2; display: flex; flex-direction: column; justify-content: center; padding: 48px 44px; position: relative; border-left: 1px solid #e8e0d0; }
-        .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; }
-        .logo-box { width: 34px; height: 34px; background: #1a1208; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .logo-box span { font-family: 'Cormorant Garamond', serif; font-size: 13px; font-weight: 600; color: #c9a84c; letter-spacing: 0.08em; }
+
+        /* ✅ FIXED: removed black background, increased size, uses image */
+        .logo-row { display: flex; align-items: center; gap: 12px; margin-bottom: 36px; }
+        .logo-box { width: 48px; height: 48px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+        .logo-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .logo-text { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: #1a1208; letter-spacing: 0.12em; text-transform: uppercase; }
+
         .heading-block { margin-bottom: 28px; }
         .heading-block h1 { font-family: 'Cormorant Garamond', serif; font-size: 38px; font-weight: 400; color: #1a1208; margin: 0 0 6px; line-height: 1.15; }
         .heading-block h1 em { color: #b8892e; font-style: italic; }
@@ -144,10 +147,15 @@ function LoginContent() {
         <div className="form-panel">
           <div className="top-accent" />
           <div className="fade-up">
+
+            {/* ✅ Logo — now uses alfima.png, no black background */}
             <div className="logo-row">
-              <div className="logo-box"><span>RE</span></div>
-              <span className="logo-text">RealEstate</span>
+              <div className="logo-box">
+                <img src="/alfima.png" alt="Alfima" />
+              </div>
+              <span className="logo-text">Alfima Realty Inc.</span>
             </div>
+
             <div className="heading-block">
               <h1>Welcome <em>back.</em></h1>
               <p>Sign in to access your account</p>
