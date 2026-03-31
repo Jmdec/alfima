@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 // ── Lazy-load the heavy Three.js modal ───────────────────────────────────────
-const VirtualTourModal = lazy(() => import('@/components/VirtualTourModal'));
+// const VirtualTourModal = lazy(() => import('@/components/VirtualTourModal'));
 
 // ── Tiny 1×1 transparent placeholder used as blurDataURL fallback ─────────────
 const BLUR_PLACEHOLDER =
@@ -1339,7 +1339,7 @@ const tour360Url: string =
   return (
     <div className="w-full">
       {/* ── Virtual Tour Modal (lazy-loaded Three.js) ── */}
-      {showVirtualTour && tour360Url && (
+      {/* {showVirtualTour && tour360Url && (
         <Suspense fallback={
           <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Loader2 size={32} color="#c0392b" style={{ animation: 'spin 1s linear infinite' }} />
@@ -1352,7 +1352,7 @@ const tour360Url: string =
   onClose={() => setShowVirtualTour(false)}
 />
         </Suspense>
-      )}
+      )} */}
 
       {/* ── Contact / Tour Modals ── */}
       {showContactModal && (
