@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const LARAVEL_API_URL = process.env.LARAVEL_API_URL || 'http://localhost:8000/api';
+const LARAVEL_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 /**
  * GET /api/testimonials
@@ -8,7 +8,7 @@ const LARAVEL_API_URL = process.env.LARAVEL_API_URL || 'http://localhost:8000/ap
  */
 export async function GET() {
   try {
-    const response = await fetch(`${LARAVEL_API_URL}/testimonials`, {
+    const response = await fetch(`${LARAVEL_API_URL}/api/testimonials`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const response = await fetch(`${LARAVEL_API_URL}/testimonials`, {
+    const response = await fetch(`${LARAVEL_API_URL}/api/testimonials`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
