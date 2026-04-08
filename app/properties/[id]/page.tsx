@@ -9,7 +9,7 @@ import { useFavorites, useAuth } from '@/lib/store';
 import {
   Heart, MapPin, Phone, Mail, Share2, ChevronLeft, ChevronRight,
   X, Search, CheckCircle2, User, MessageSquare, Calendar,
-  ArrowRight, Loader2, Building2, Clock, Video, Home, Lock,
+  ArrowRight, Loader2, Building2, Clock, Video, Home, Lock, Image as ImageIcon,
   // Rotate3D,    // ← 360° tour icon — commented out
 } from 'lucide-react';
 
@@ -58,6 +58,15 @@ interface Agent {
   is_active?: boolean;
 }
 
+interface PropertyVideo {
+  id: number;
+  url: string;
+  video_path?: string; // fallback for compatibility
+  title?: string;
+  user_id?: number;
+  created_at?: string;
+}
+
 interface LeadForm {
   name: string;
   phone: string;
@@ -73,7 +82,7 @@ type ModalStep = 'select-agent' | 'lead-form' | 'submitting' | 'success';
 const s = {
   overlay: {
     position: 'fixed' as const, inset: 0,
-    background: 'rgba(10,10,20,0.75)',
+    background: 'rgba(40, 15, 15, 0.75)',
     zIndex: 9999,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: 16, backdropFilter: 'blur(6px)',
@@ -844,6 +853,7 @@ const TOUR_VALIDATORS: Record<'name' | 'phone' | 'email', (v: string, form?: Tou
   email: (v, form) => { if (form?.preferredContact === 'email') { if (!v.trim()) return 'Email is required when confirming via Email'; if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim())) return 'Enter a valid email address'; } else { if (v.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim())) return 'Enter a valid email address'; } return null; },
 };
 
+
 function getAvailableDates() {
   const dates: { value: string; label: string; day: string; isPopular: boolean }[] = [];
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1204,6 +1214,8 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   const [property,            setProperty]            = useState<Property | null>(null);
   const [loading,             setLoading]             = useState(true);
   const [imageIndex,          setImageIndex]          = useState(0);
+  const [videoIndex,          setVideoIndex]          = useState(0);
+  const [activeTab,           setActiveTab]           = useState<'gallery' | 'videos' | 'details'>('gallery');
   const [lightboxOpen,        setLightboxOpen]        = useState(false);
   const [showContactModal,    setShowContactModal]    = useState(false);
   const [showTourModal,       setShowTourModal]       = useState(false);
@@ -1223,6 +1235,21 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
         }
 
         const data = await res.json();
+        
+        // Fetch videos separately
+        try {
+          const videosRes = await fetch(`/api/properties/${id}/videos`);
+          if (videosRes.ok) {
+            const videosData = await videosRes.json();
+            const videos = Array.isArray(videosData) ? videosData : videosData.data ?? [];
+            console.log("[v0] Videos fetched:", videos);
+            data.videos = videos;
+          }
+        } catch (videoErr) {
+          console.error("[v0] Failed to fetch videos:", videoErr);
+          data.videos = [];
+        }
+        
         setProperty(data);
       } catch (error) {
         console.error('Failed to fetch property:', error);
@@ -1293,8 +1320,10 @@ if (images.length === 0 && (property as any).thumbnail) {
 
   const currentImage = images[imageIndex] ?? '/placeholder-property.jpg';
 
-  const nextImage    = () => setImageIndex(prev => (prev + 1) % images.length);
-  const prevImage    = () => setImageIndex(prev => (prev - 1 + images.length) % images.length);
+  const nextImage = () => setImageIndex(prev => (prev + 1) % images.length);
+  const prevImage = () => setImageIndex(prev => (prev - 1 + images.length) % images.length);
+  const nextVideo = () => setVideoIndex(prev => (prev + 1) % ((property as any).videos ?? []).length);
+  const prevVideo = () => setVideoIndex(prev => (prev - 1 + ((property as any).videos ?? []).length) % ((property as any).videos ?? []).length);
 
   const listingType  = (property as any).listing_type ?? (property as any).listingType;
   const priceDisplay = listingType === 'rent'
@@ -1334,7 +1363,7 @@ if (images.length === 0 && (property as any).thumbnail) {
   const thumbUrls    = images.map(img => cdnUrl(img, 80, 80));
 
   return (
-    <div className="w-full">
+    <div className="w-full" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
       {/* ── Virtual Tour Modal — commented out ── */}
       {/* {showVirtualTour && tour360Url && (
         <Suspense fallback={
@@ -1365,7 +1394,7 @@ if (images.length === 0 && (property as any).thumbnail) {
 
       {/* ── Lightbox ── */}
       {lightboxOpen && (
-        <div className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center" onClick={() => setLightboxOpen(false)}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => setLightboxOpen(false)} style={{ background: 'rgba(40, 15, 15, 0.95)' }}>
           <button onClick={() => setLightboxOpen(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors z-10">
             <X className="w-5 h-5" />
           </button>
@@ -1412,10 +1441,10 @@ if (images.length === 0 && (property as any).thumbnail) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
           {/* ── Main Content ── */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
 
-            {/* ── Hero image ── */}
-            <div className="glass rounded-xl overflow-hidden mb-4 aspect-video relative group cursor-zoom-in" onClick={() => setLightboxOpen(true)}>
+            {/* ── HERO IMAGE SECTION ── */}
+            <div className="glass rounded-xl overflow-hidden aspect-video relative group cursor-zoom-in" onClick={() => setLightboxOpen(true)}>
               <Image
                 src={heroThumbUrl}
                 alt={`${property.title} - ${imageIndex + 1}`}
@@ -1427,19 +1456,6 @@ if (images.length === 0 && (property as any).thumbnail) {
                 blurDataURL={blurHash || BLUR_PLACEHOLDER}
                 className="object-cover"
               />
-
-              {/* 360° badge on hero — commented out */}
-              {/* {tour360Url && (
-                <button
-                  onClick={e => { e.stopPropagation(); setShowVirtualTour(true); }}
-                  className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-white transition-all hover:scale-105 active:scale-95"
-                  style={{ background: 'linear-gradient(135deg, rgba(192,57,43,0.95), rgba(231,76,60,0.95))', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 4px 16px rgba(192,57,43,0.4)' }}
-                >
-                  <Rotate3D size={13} />
-                  360° Virtual Tour
-                </button>
-              )} */}
-
               {images.length > 1 && (
                 <div className="absolute top-4 right-4 bg-black/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full backdrop-blur-sm z-10">
                   {imageIndex + 1} / {images.length}
@@ -1465,62 +1481,160 @@ if (images.length === 0 && (property as any).thumbnail) {
               )}
             </div>
 
-            {/* ── Thumbnail strip ── */}
-            {images.length > 1 && (
-              <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-                {images.map((_, idx) => (
-                  <button key={idx} onClick={() => setImageIndex(idx)} className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 relative transition-all ${idx === imageIndex ? 'border-primary ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}>
-                    <Image src={thumbUrls[idx]} alt="" fill sizes="80px" loading="lazy" placeholder="blur" blurDataURL={blurHash || BLUR_PLACEHOLDER} className="object-cover" />
-                  </button>
-                ))}
+            {/* ── TAB NAVIGATION ── */}
+            <div className="glass rounded-xl p-2 flex gap-1 overflow-x-auto border-b border-border">
+              <button
+                onClick={() => setActiveTab('gallery')}
+                className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition whitespace-nowrap border-b-2 ${
+                  activeTab === 'gallery'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ImageIcon className="w-5 h-5" />
+                Gallery
+                <span className="ml-1 text-xs bg-primary/10 px-2 py-0.5 rounded-full font-bold">
+                  {images.length}
+                </span>
+              </button>
+              {((property as any).videos ?? []).length > 0 && (
+                <button
+                  onClick={() => setActiveTab('videos')}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition whitespace-nowrap border-b-2 ${
+                    activeTab === 'videos'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Video className="w-5 h-5" />
+                  Videos
+                  <span className="ml-1 text-xs bg-primary/10 px-2 py-0.5 rounded-full font-bold">
+                    {((property as any).videos ?? []).length}
+                  </span>
+                </button>
+              )}
+              <button
+                onClick={() => setActiveTab('details')}
+                className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition whitespace-nowrap border-b-2 ${
+                  activeTab === 'details'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Home className="w-5 h-5" />
+                Details
+              </button>
+            </div>
+
+            {/* ── GALLERY TAB ── */}
+            {activeTab === 'gallery' && (
+              <div className="space-y-4">
+                {images.length > 1 && (
+                  <div className="glass rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm font-semibold text-foreground">Photo Gallery</p>
+                      <div className="flex gap-2">
+                        <button onClick={prevImage} className="p-2 hover:bg-muted rounded-lg transition" aria-label="Previous image">
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button onClick={nextImage} className="p-2 hover:bg-muted rounded-lg transition" aria-label="Next image">
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {images.map((_, idx) => (
+                        <button key={idx} onClick={() => setImageIndex(idx)} className={`flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border-2 relative transition-all ${idx === imageIndex ? 'border-primary ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}>
+                          <Image src={thumbUrls[idx]} alt="" fill sizes="96px" loading="lazy" placeholder="blur" blurDataURL={blurHash || BLUR_PLACEHOLDER} className="object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── Property info ── */}
-            <div className="glass rounded-xl p-8 mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-4">{property.title}</h1>
-              <div className="flex items-start gap-2 text-lg text-muted-foreground mb-6">
-                <MapPin className="w-5 h-5 flex-shrink-0 mt-1" />
-                <div>
-                  <p>{property.address}</p>
-                  <p className="text-sm">{property.city}, {(property as any).state} {(property as any).zip_code ?? (property as any).zipCode}</p>
+            {/* ── VIDEOS TAB ── */}
+            {activeTab === 'videos' && ((property as any).videos ?? []).length > 0 && (
+              <div className="glass rounded-xl p-8">
+                {((property as any).videos ?? []).length > 1 && (
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-bold">Video {videoIndex + 1} of {((property as any).videos ?? []).length}</h2>
+                    <div className="flex gap-2">
+                      <button onClick={prevVideo} className="p-2 hover:bg-muted rounded-lg transition" aria-label="Previous video">
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button onClick={nextVideo} className="p-2 hover:bg-muted rounded-lg transition" aria-label="Next video">
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="rounded-lg overflow-hidden bg-black">
+                  <video src={(property as any).videos[videoIndex]?.url || (property as any).videos[videoIndex]?.video_path} controls className="w-full h-full object-contain max-h-96" />
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-4 mb-8 pb-8 border-b border-border">
-                <div><p className="text-muted-foreground text-sm">Bedrooms</p><p className="text-2xl font-bold">{property.bedrooms ?? '—'}</p></div>
-                <div><p className="text-muted-foreground text-sm">Bathrooms</p><p className="text-2xl font-bold">{property.bathrooms ?? '—'}</p></div>
-                <div><p className="text-muted-foreground text-sm">Area</p><p className="text-2xl font-bold">{areaDisplay}</p></div>
-                <div><p className="text-muted-foreground text-sm">Year Built</p><p className="text-2xl font-bold">{(property as any).year_built ?? (property as any).yearBuilt ?? '—'}</p></div>
-              </div>
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4">About this property</h2>
-                <p className="text-muted-foreground leading-relaxed">{(property as any).description}</p>
-              </div>
-              {((property as any).amenities ?? []).length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold mb-4">Amenities</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {(property as any).amenities.map((amenity: string) => (
-                      <div key={amenity} className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                        <span className="text-lg">✓</span><span className="text-sm">{amenity}</span>
-                      </div>
-                    ))}
+            )}
+
+            {/* ── DETAILS TAB ── */}
+            {activeTab === 'details' && (
+              <div className="space-y-6">
+                {/* ── PROPERTY HEADER INFO ── */}
+                <div className="glass rounded-xl p-8">
+                  <h1 className="text-3xl sm:text-4xl font-bold mb-4">{property.title}</h1>
+                  <div className="flex items-start gap-2 text-muted-foreground mb-6">
+                    <MapPin className="w-5 h-5 flex-shrink-0 mt-1" />
+                    <div>
+                      <p>{property.address}</p>
+                      <p className="text-sm">{property.city}, {(property as any).state} {(property as any).zip_code ?? (property as any).zipCode}</p>
+                    </div>
+                  </div>
+                  
+                  {/* ── KEY STATS ── */}
+                  <div className="grid grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+                    <div className="text-center"><p className="text-muted-foreground text-xs font-semibold mb-1">Bedrooms</p><p className="text-xl font-bold">{property.bedrooms ?? '—'}</p></div>
+                    <div className="text-center"><p className="text-muted-foreground text-xs font-semibold mb-1">Bathrooms</p><p className="text-xl font-bold">{property.bathrooms ?? '—'}</p></div>
+                    <div className="text-center"><p className="text-muted-foreground text-xs font-semibold mb-1">Area</p><p className="text-xl font-bold">{areaDisplay}</p></div>
+                    <div className="text-center"><p className="text-muted-foreground text-xs font-semibold mb-1">Year Built</p><p className="text-xl font-bold">{(property as any).year_built ?? (property as any).yearBuilt ?? '—'}</p></div>
                   </div>
                 </div>
-              )}
-              {((property as any).features ?? []).length > 0 && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-4">Features</h2>
-                  <ul className="space-y-2">
-                    {(property as any).features.map((feature: string) => (
-                      <li key={feature} className="flex items-center gap-2 text-muted-foreground">
-                        <span className="text-primary">•</span>{feature}
-                      </li>
-                    ))}
-                  </ul>
+
+                {/* ── DESCRIPTION SECTION ── */}
+                <div className="glass rounded-xl p-8">
+                  <h2 className="text-2xl font-bold mb-4">About this property</h2>
+                  <p className="text-muted-foreground leading-relaxed">{(property as any).description}</p>
                 </div>
-              )}
-            </div>
+
+                {/* ── AMENITIES SECTION ── */}
+                {((property as any).amenities ?? []).length > 0 && (
+                  <div className="glass rounded-xl p-8">
+                    <h2 className="text-2xl font-bold mb-6">Amenities</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {(property as any).amenities.map((amenity: string) => (
+                        <div key={amenity} className="flex items-center gap-2 p-3 bg-muted rounded-lg hover:bg-muted/80 transition">
+                          <span className="text-lg">✓</span><span className="text-sm font-medium">{amenity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── FEATURES SECTION ── */}
+                {((property as any).features ?? []).length > 0 && (
+                  <div className="glass rounded-xl p-8">
+                    <h2 className="text-2xl font-bold mb-6">Features</h2>
+                    <ul className="space-y-3">
+                      {(property as any).features.map((feature: string) => (
+                        <li key={feature} className="flex items-start gap-3 text-muted-foreground">
+                          <span className="text-primary font-bold mt-0.5">•</span>
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── Sidebar ── */}
@@ -1561,7 +1675,7 @@ if (images.length === 0 && (property as any).thumbnail) {
                   </Button>
                 )} */}
 
-                <Button
+                {/* <Button
                   onClick={() => toggleFavorite(propertyId)}
                   variant="outline"
                   className="w-full border-border hover:bg-muted"
@@ -1569,7 +1683,7 @@ if (images.length === 0 && (property as any).thumbnail) {
                 >
                   <Heart className={`w-4 h-4 mr-2 ${favorited ? 'fill-accent stroke-accent' : ''}`} />
                   {favorited ? 'Saved' : 'Save'}
-                </Button>
+                </Button> */}
               </div>
 
               <button className="w-full flex items-center justify-center gap-2 p-3 hover:bg-muted rounded-lg transition text-sm font-medium" onClick={handleShare}>
@@ -1601,7 +1715,7 @@ if (images.length === 0 && (property as any).thumbnail) {
                     {(property as any).agent.experience_years && (
                       <p className="text-xs text-muted-foreground mb-4">{(property as any).agent.experience_years} years experience</p>
                     )}
-                    <div className="space-y-2">
+                    {/* <div className="space-y-2">
                       {(property as any).agent.phone && (
                         <a href={`tel:${(property as any).agent.phone}`} className="block w-full">
                           <Button variant="outline" className="w-full border-border hover:bg-muted text-sm justify-center">
@@ -1612,7 +1726,7 @@ if (images.length === 0 && (property as any).thumbnail) {
                       <Button variant="outline" className="w-full border-border hover:bg-muted text-sm justify-center" onClick={() => setShowContactModal(true)}>
                         <Mail className="w-4 h-4 mr-1" />Message
                       </Button>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               </div>

@@ -1,11 +1,15 @@
+'use client';
+
 import { AdminSidebar, AdminMobileTopbar } from '@/components/admin/AdminSidebar';
+import { usePushNotification } from '@/hooks/usePushNotification';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  usePushNotification(); // 👈 registers SW + subscribes admin to push + badge
+
   return (
     <>
       <style>{`
         body { background: #f8fafc !important; }
-        /* Cancel the root layout's pt-16 on <main> */
         main { padding-top: 0 !important; min-height: unset !important; }
       `}</style>
       <div className="flex h-screen overflow-hidden bg-slate-50">

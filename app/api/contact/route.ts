@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const dbRes = await fetch(`${apiUrl}/api/contact`, {
+    const dbRes = await fetch(`${apiUrl}/api/contacts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

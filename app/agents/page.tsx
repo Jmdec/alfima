@@ -47,7 +47,7 @@ export default function AgentsPage() {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-white">
+    <div className="w-full min-h-screen" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
       <style>{`
         @keyframes float-p0{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}
         @keyframes float-p1{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
@@ -60,7 +60,7 @@ export default function AgentsPage() {
            HERO — editorial talent-roster
          ══════════════════════════════ */}
       <section className="relative pt-32 pb-0 overflow-hidden"
-        style={{ background: 'linear-gradient(145deg,#7a1818 0%,#a02020 35%,#7a1818 65%,#4a0e0e 100%)' }}>
+        style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
 
         {/* dot grid */}
         <div className="absolute inset-0 opacity-10"
@@ -93,7 +93,7 @@ export default function AgentsPage() {
               {/* eyebrow */}
               <div style={{opacity:heroIn?1:0,transform:heroIn?'none':'translateY(35px)',transition:'opacity .8s ease 0ms,transform .8s ease 0ms'}}>
                 <div className="inline-flex items-center gap-2 mb-5">
-                  <div className="h-px w-10 bg-red-200/70"/>
+                  <div className="h-px w-10" style={{background:'linear-gradient(90deg,#e8a8a0,#d4a5a0)'}}/>
                   <span className="text-red-200 text-xs font-black tracking-[0.2em] uppercase">Meet the Team</span>
                 </div>
               </div>
@@ -161,28 +161,31 @@ export default function AgentsPage() {
               </div>
             </div>
 
-            {/* RIGHT — stat cards with colored icon boxes */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* RIGHT — premium features showcase */}
+            <div className="space-y-4">
               {[
-                { value:'50+',  label:'Licensed Agents',   icon:<Users      className="w-4 h-4"/>, d:200 },
-                { value:'10+',  label:'Years Experience',  icon:<TrendingUp className="w-4 h-4"/>, d:350 },
-                { value:'500+', label:'Properties Closed', icon:<Award      className="w-4 h-4"/>, d:500 },
-                { value:'4.9★', label:'Average Rating',    icon:<Star       className="w-4 h-4"/>, d:650 },
-              ].map(({value,label,icon,d}) => (
-                <div key={label}
-                  className="rounded-2xl p-5 border border-white/15 hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default group"
+                { title: 'Expert Negotiators', desc: 'Masterful deal-making to get you the best value', icon: <Award className="w-5 h-5"/>, d: 200 },
+                { title: 'Market Intelligence', desc: 'Latest trends and pricing data at your fingertips', icon: <TrendingUp className="w-5 h-5"/>, d: 350 },
+                { title: 'Trusted Network', desc: '50+ licensed professionals across 20+ cities', icon: <Users className="w-5 h-5"/>, d: 500 },
+                { title: 'Award Winning', desc: '4.9★ rated by thousands of satisfied clients', icon: <Star className="w-5 h-5"/>, d: 650 },
+              ].map(({title, desc, icon, d}) => (
+                <div key={title}
+                  className="rounded-xl p-4 border border-white/15 hover:border-white/30 transition-all duration-300 group"
                   style={{
                     background:'rgba(0,0,0,0.28)',backdropFilter:'blur(12px)',
                     opacity:heroIn?1:0,transform:heroIn?'translateY(0)':'translateY(30px)',
                     transition:`opacity .8s ease ${d}ms,transform .8s ease ${d}ms`,
                   }}>
-                  {/* colored icon box */}
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform duration-300"
-                    style={{background:'rgba(231,76,60,0.55)',border:'1px solid rgba(231,76,60,0.4)'}}>
-                    {icon}
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-white group-hover:scale-110 transition-transform duration-300 mt-0.5"
+                      style={{background:'rgba(231,76,60,0.55)',border:'1px solid rgba(231,76,60,0.4)'}}>
+                      {icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-white leading-tight">{title}</h3>
+                      <p className="text-xs text-red-100/50 font-medium mt-1 leading-snug">{desc}</p>
+                    </div>
                   </div>
-                  <div className="text-3xl font-black text-white mb-1 leading-none">{value}</div>
-                  <div className="text-xs text-red-100/55 font-semibold tracking-wide">{label}</div>
                 </div>
               ))}
             </div>
@@ -192,33 +195,52 @@ export default function AgentsPage() {
 
         {/* ── scrolling ticker bar — unique editorial touch ── */}
         <div className="relative z-10 border-t border-white/10 overflow-hidden"
-          style={{background:'rgba(0,0,0,0.35)',backdropFilter:'blur(8px)'}}>
-          <div className="flex" style={{animation:'ticker 28s linear infinite',width:'max-content'}}>
-            {[...Array(2)].map((_,rep) => (
-              <div key={rep} className="flex items-center gap-0 py-3">
-                {['Licensed Brokers','Expert Negotiators','Metro Manila','Cavite','Laguna','Bulacan','Pampanga','Cebu','Davao','BGC Specialists','Condo Experts','House & Lot','Commercial','Investment Properties'].map((item,i) => (
-                  <span key={`${rep}-${i}`} className="inline-flex items-center gap-3 px-6 text-xs font-black text-white/40 tracking-[0.15em] uppercase whitespace-nowrap">
-                    <span className="w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0"/>
-                    {item}
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
+  style={{background:'rgba(30,15,15,0.6)',backdropFilter:'blur(8px)'}}>
+  
+  <div className="flex" style={{animation:'ticker 28s linear infinite',width:'max-content'}}>
+    {[...Array(2)].map((_,rep) => (
+      <div key={rep} className="flex items-center gap-0 py-3">
+        
+        {[
+          'Licensed Real Estate Agents',
+          'Certified Property Specialists',
+          'Expert Negotiators',
+          'Client-Focused Service',
+          'Trusted Property Advisors',
+          'Residential Sales Experts',
+          'Commercial Property Agents',
+          'Investment Property Specialists',
+          'Market Analysis Experts',
+          'Property Valuation Services',
+          'End-to-End Assistance',
+          'Fast & Secure Transactions',
+          'Home Buying Experts',
+          'Property Selling Pros'
+        ].map((item,i) => (
+          
+          <span key={`${rep}-${i}`} className="inline-flex items-center gap-3 px-6 text-xs font-black text-white/40 tracking-[0.15em] uppercase whitespace-nowrap">
+            <span className="w-1 h-1 rounded-full bg-red-400/60 flex-shrink-0"/>
+            {item}
+          </span>
+          
+        ))}
+      </div>
+    ))}
+  </div>
+</div>
 
-        {/* wave to white */}
-        <div className="absolute bottom-0 left-0 w-full overflow-hidden" style={{bottom:'-1px'}}>
-          <svg viewBox="0 0 1440 70" preserveAspectRatio="none" className="w-full h-14" fill="white">
-            <path d="M0,70 C480,0 960,70 1440,20 L1440,70 Z"/>
+        {/* wave — now blends into #E8EAED instead of white */}
+         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
+          <svg viewBox="0 0 1440 48" preserveAspectRatio="none" className="w-full h-12" fill="#6a4d57">
+            <path d="M0,48 C480,0 960,48 1440,16 L1440,48 Z" />
           </svg>
         </div>
       </section>
 
       {/* ══════════════════════════════
-           AGENTS GRID — white, editorial
+           AGENTS GRID
          ══════════════════════════════ */}
-      <section className="py-20 bg-white">
+      <section className="py-20" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* section header */}
@@ -228,19 +250,19 @@ export default function AgentsPage() {
                 <div className="h-px w-8 bg-red-500"/>
                 <span className="text-red-500 text-xs font-black tracking-[0.2em] uppercase">Our Roster</span>
               </div>
-              <h2 className="text-3xl font-black text-gray-900">
+              <h2 className="text-3xl font-black text-white">
                 {loading ? 'Loading Agents…' : (
                   <>
-                    <span className="text-red-600">{agents.length}</span>{' '}
+                    <span className="text-red-400">{agents.length}</span>{' '}
                     {agents.length === 1 ? 'Agent' : 'Agents'}
-                    {search && <span className="text-gray-400 font-medium text-xl ml-2">for "{search}"</span>}
+                    {search && <span className="text-white/40 font-medium text-xl ml-2">for "{search}"</span>}
                   </>
                 )}
               </h2>
             </div>
             {search && !loading && (
               <button onClick={() => setSearch('')}
-                className="inline-flex items-center gap-2 text-sm font-bold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 px-4 py-2 rounded-full transition-all hover:bg-red-50">
+                className="inline-flex items-center gap-2 text-sm font-bold text-red-400 hover:text-red-300 border border-red-800 hover:border-red-600 px-4 py-2 rounded-full transition-all hover:bg-red-900/30">
                 ✕ Clear search
               </button>
             )}
@@ -250,13 +272,12 @@ export default function AgentsPage() {
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {[...Array(6)].map((_,i) => (
-                <div key={i} className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm animate-pulse">
-                  {/* skeleton photo area */}
-                  <div className="h-56 bg-gray-100"/>
+                <div key={i} className="rounded-2xl overflow-hidden shadow-sm animate-pulse" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="h-56" style={{ background: 'rgba(255,255,255,0.05)' }}/>
                   <div className="p-6 space-y-3">
-                    <div className="h-4 w-2/3 bg-gray-100 rounded-full"/>
-                    <div className="h-3 w-1/2 bg-gray-100 rounded-full"/>
-                    <div className="h-3 w-3/4 bg-gray-100 rounded-full"/>
+                    <div className="h-4 w-2/3 rounded-full" style={{ background: 'rgba(255,255,255,0.07)' }}/>
+                    <div className="h-3 w-1/2 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}/>
+                    <div className="h-3 w-3/4 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}/>
                   </div>
                 </div>
               ))}
@@ -264,14 +285,13 @@ export default function AgentsPage() {
           ) : agents.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {agents.map((agent, index) => (
-                /* wrapper gives each card a ranking number + unique hover */
                 <div key={agent.id} className="relative group">
-                  {/* ranking badge — editorial touch */}
+                  {/* ranking badge */}
                   <div className="absolute -top-3 -left-3 z-20 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white shadow-lg transition-transform duration-300 group-hover:scale-110"
                     style={{background:'linear-gradient(135deg,#c0392b,#e74c3c)'}}>
                     {String(index+1).padStart(2,'0')}
                   </div>
-                  {/* red slash accent on hover */}
+                  {/* hover accent */}
                   <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10"
                     style={{background:'linear-gradient(135deg,rgba(192,57,43,0.04) 0%,transparent 60%)',outline:'2px solid rgba(192,57,43,0.15)',borderRadius:'1rem'}}/>
                   <AgentCard
@@ -282,14 +302,13 @@ export default function AgentsPage() {
               ))}
             </div>
           ) : (
-            /* empty state — white card, clean */
-            <div className="rounded-3xl p-16 text-center border-2 border-dashed border-gray-200 bg-gray-50">
+            <div className="rounded-3xl p-16 text-center" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(20px)' }}>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-                style={{background:'linear-gradient(135deg,#fff0f0,#ffe0e0)',border:'1px solid #fcc'}}>
+                style={{background:'rgba(192,57,43,0.2)',border:'1px solid rgba(192,57,43,0.3)'}}>
                 <Users className="w-8 h-8 text-red-400"/>
               </div>
-              <p className="text-2xl font-black text-gray-900 mb-2">No agents found</p>
-              <p className="text-gray-400 text-base mb-6 max-w-sm mx-auto">
+              <p className="text-2xl font-black text-white mb-2">No agents found</p>
+              <p className="text-white/40 text-base mb-6 max-w-sm mx-auto">
                 Try a different name or specialization, or browse our full roster.
               </p>
               {search && (

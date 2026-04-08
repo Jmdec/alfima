@@ -11,17 +11,17 @@ interface FeaturedPropertiesProps {
 
 export function FeaturedProperties({ properties, loading }: FeaturedPropertiesProps) {
   return (
-    <section className="py-24 sm:py-32 bg-gradient-to-b from-green-900/40 to-transparent">
+    <section className="py-24 sm:py-32 bg-gradient-to-b from-red-900/40 to-transparent">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-16">
           <h2 className="text-4xl sm:text-5xl font-bold text-white mb-4">Featured Properties</h2>
-          <p className="text-green-100 text-xl">Explore our handpicked selection of premium listings</p>
+          <p className="text-rose-100 text-xl">Explore our handpicked selection of premium listings</p>
         </div>
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white/10 backdrop-blur-md h-96 rounded-2xl animate-pulse border border-white/20" />
+              <div key={i} className="bg-white/10 backdrop-blur-md h-96 rounded-2xl animate-pulse border border-rose-300/30" />
             ))}
           </div>
         ) : (
@@ -35,7 +35,7 @@ export function FeaturedProperties({ properties, loading }: FeaturedPropertiesPr
 
         <div className="text-center">
           <Link href="/properties">
-            <Button className="bg-gradient-to-r from-lime-400 to-green-500 hover:from-lime-500 hover:to-green-600 text-green-950 font-bold gap-2 text-lg px-8 py-6">
+            <Button className="bg-gradient-to-r from-rose-400 to-red-500 hover:from-rose-500 hover:to-red-600 text-red-950 font-bold gap-2 text-lg px-8 py-6">
               View All Properties <ArrowRight className="w-5 h-5" />
             </Button>
           </Link>

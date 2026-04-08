@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from '@/components/ui/toaster'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { FloatingSocialWidget } from '@/components/global/floating-social'
@@ -70,6 +71,7 @@ export default function RootLayout({
           <FloatingSocialWidget />
           <Footer />
           <CookieConsent />
+          <Toaster />
         </AuthProvider>
         <Analytics />
       </body>

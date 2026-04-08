@@ -352,12 +352,12 @@ function PropertiesPageInner() {
   };
 
   return (
-    <div className="w-full min-h-screen" style={{ background: '#150808', fontFamily: "'Georgia', serif" }}>
+    <div className="w-full min-h-screen" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)', fontFamily: "'Georgia', serif" }}>
 
       {/* ── Hero ── */}
       <section
         className="relative pt-28 overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, #3d0a0a 0%, #6b1212 40%, #2a0606 100%)' }}
+        style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}
       >
         <div className="absolute inset-0 opacity-[0.04]" style={{
           backgroundImage: 'repeating-linear-gradient(45deg, #fff 0px, #fff 1px, transparent 1px, transparent 12px)',
@@ -531,7 +531,7 @@ function PropertiesPageInner() {
 
         {/* Wave */}
         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
-          <svg viewBox="0 0 1440 48" preserveAspectRatio="none" className="w-full h-12" fill="#150808">
+          <svg viewBox="0 0 1440 48" preserveAspectRatio="none" className="w-full h-12" fill="#3d1a1a">
             <path d="M0,48 C480,0 960,48 1440,16 L1440,48 Z" />
           </svg>
         </div>
@@ -541,7 +541,7 @@ function PropertiesPageInner() {
       <StatTicker total={pagination?.total ?? 0} />
 
       {/* ── Results ── */}
-      <section className="py-10" style={{ background: '#150808' }}>
+      <section className="py-10" style={{ background: '#3d1a1a' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Toolbar */}
@@ -629,7 +629,7 @@ function PropertiesPageInner() {
                 <div
                   key={i}
                   className="h-72 rounded-2xl animate-pulse border border-red-900/20"
-                  style={{ background: 'linear-gradient(135deg, #1e0808 0%, #110404 100%)' }}
+                  style={{ background: 'linear-gradient(135deg, #4a1f1f 0%, #3d1a1a 100%)' }}
                 />
               ))}
             </div>

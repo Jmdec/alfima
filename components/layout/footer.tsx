@@ -40,7 +40,7 @@ export function Footer() {
   };
 
   return (
-    <footer className="relative mt-20 overflow-hidden"
+    <footer className="relative overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #6b1a1a 0%, #7d2020 30%, #5c1515 70%, #4a1010 100%)' }}>
 
       <div className="absolute top-0 left-0 w-full h-px"

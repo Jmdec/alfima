@@ -18,22 +18,6 @@ function useReveal(threshold = 0.12) {
   return { ref, visible };
 }
 
-function useCounter(target: number, duration = 1800, started = false) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!started) return;
-    let val = 0;
-    const step = target / (duration / 16);
-    const t = setInterval(() => {
-      val += step;
-      if (val >= target) { setCount(target); clearInterval(t); }
-      else setCount(Math.floor(val));
-    }, 16);
-    return () => clearInterval(t);
-  }, [started, target]);
-  return count;
-}
-
 function Reveal({ children, delay = 0, dir = 'up', className = '' }: {
   children: React.ReactNode; delay?: number; dir?: 'up' | 'left' | 'right'; className?: string;
 }) {
@@ -47,31 +31,6 @@ function Reveal({ children, delay = 0, dir = 'up', className = '' }: {
   );
 }
 
-/* Animated stat card with colored icon box */
-function StatCard({ value, suffix, label, icon, delay = 0 }: {
-  value: number; suffix: string; label: string; icon: React.ReactNode; delay?: number;
-}) {
-  const { ref, visible } = useReveal(0.3);
-  const count = useCounter(value, 1800, visible);
-  return (
-    <div ref={ref}
-      className="rounded-2xl p-5 border border-white/15 hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default group"
-      style={{
-        background: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(12px)',
-        opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(30px)',
-        transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms`,
-      }}>
-      {/* ② Colored icon box */}
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform duration-300"
-        style={{ background: 'rgba(231,76,60,0.55)', border: '1px solid rgba(231,76,60,0.4)' }}>
-        {icon}
-      </div>
-      <div className="text-3xl font-black text-white mb-1 leading-none">{count}{suffix}</div>
-      <div className="text-xs text-red-100/55 font-semibold tracking-wide">{label}</div>
-    </div>
-  );
-}
-
 function FloatingParticles() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -79,7 +38,7 @@ function FloatingParticles() {
         <div key={i} className="absolute rounded-full" style={{
           width: `${3 + (i % 4) * 2}px`, height: `${3 + (i % 4) * 2}px`,
           left: `${(i * 10.3) % 100}%`, top: `${(i * 13.7) % 100}%`,
-          background: i % 2 === 0 ? 'rgba(231,76,60,0.4)' : 'rgba(255,255,255,0.15)',
+          background: i % 2 === 0 ? 'rgba(232,168,160,0.4)' : 'rgba(255,255,255,0.15)',
           animation: `float-p${i % 3} ${4 + (i % 3) * 2}s ease-in-out infinite`,
           animationDelay: `${i * 0.4}s`,
         }} />
@@ -92,7 +51,6 @@ export default function AboutPage() {
   const [heroIn, setHeroIn] = useState(false);
   useEffect(() => { setTimeout(() => setHeroIn(true), 80); }, []);
 
-  /* ① Trust badges */
   const trustBadges = [
     { icon: <Shield   className="w-3 h-3" />, text: 'PRC Licensed' },
     { icon: <Star     className="w-3 h-3" />, text: '4.9★ Rated' },
@@ -100,7 +58,6 @@ export default function AboutPage() {
     { icon: <Award    className="w-3 h-3" />, text: 'Award-Winning' },
   ];
 
-  /* ④ Quick-info strip */
   const quickInfo = [
     { icon: <Building2 className="w-3.5 h-3.5" />, text: '10+ Years in Business' },
     { icon: <MapPin    className="w-3.5 h-3.5" />, text: '20+ Cities' },
@@ -108,7 +65,7 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-white">
+    <div className="w-full min-h-screen" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
       <style>{`
         @keyframes float-p0{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}
         @keyframes float-p1{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
@@ -117,10 +74,10 @@ export default function AboutPage() {
       `}</style>
 
       {/* ══════════════════════════════
-           HERO — red/dark, stays rich
+           HERO — rich burgundy/maroon
          ══════════════════════════════ */}
       <section className="relative pt-32 pb-28 overflow-hidden"
-        style={{ background: 'linear-gradient(145deg,#7a1818 0%,#a02020 35%,#7a1818 65%,#4a0e0e 100%)' }}>
+        style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
 
         {/* dot grid */}
         <div className="absolute inset-0 opacity-10"
@@ -146,7 +103,7 @@ export default function AboutPage() {
               {/* Eyebrow */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 0ms, transform .8s ease 0ms' }}>
                 <div className="inline-flex items-center gap-2 mb-5">
-                  <div className="h-px w-10 bg-red-200/70" />
+                  <div className="h-px w-10" style={{background:'linear-gradient(90deg,#e8a8a0,#d4a5a0)'}} />
                   <span className="text-red-200 text-xs font-black tracking-[0.2em] uppercase">Est. Since Day One</span>
                 </div>
               </div>
@@ -197,9 +154,9 @@ export default function AboutPage() {
               {/* Buttons */}
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 490ms, transform .8s ease 490ms' }}>
                 <div className="flex gap-4 flex-wrap">
-                  <Link href="/properties">
+                  <Link href="/">
                     <button className="inline-flex items-center gap-2 bg-white text-red-800 font-black px-7 py-3.5 rounded-full hover:bg-red-50 shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-200">
-                      Browse Properties <ArrowRight className="w-4 h-4" />
+                      Browse Services <ArrowRight className="w-4 h-4" />
                     </button>
                   </Link>
                   <Link href="/contact">
@@ -211,21 +168,22 @@ export default function AboutPage() {
               </div>
             </div>
 
-            {/* RIGHT — stat cards with ② colored icon boxes */}
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard value={10}  suffix="+" label="Years in Business" icon={<TrendingUp className="w-4 h-4" />} delay={200} />
-              <StatCard value={500} suffix="+" label="Properties Sold"   icon={<Award      className="w-4 h-4" />} delay={350} />
-              <StatCard value={300} suffix="+" label="Happy Clients"     icon={<Users      className="w-4 h-4" />} delay={500} />
-              <StatCard value={20}  suffix="+" label="Cities Covered"    icon={<MapPin     className="w-4 h-4" />} delay={650} />
+            {/* RIGHT — hero image */}
+            <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateX(50px)', transition: 'opacity .8s ease 400ms, transform .8s ease 400ms' }}>
+              <img 
+                src="/hero-background.jpg" 
+                alt="Alfima Realty Stats" 
+                className="w-full h-auto rounded-2xl shadow-2xl hover:scale-105 transition-transform duration-300"
+              />
             </div>
 
           </div>
         </div>
 
-        {/* Wave to white */}
-        <div className="absolute bottom-0 left-0 w-full overflow-hidden">
-          <svg viewBox="0 0 1440 70" preserveAspectRatio="none" className="w-full h-14" fill="white">
-            <path d="M0,70 C480,0 960,70 1440,20 L1440,70 Z" />
+        {/* Wave to burgundy/tan */}
+         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
+          <svg viewBox="0 0 1440 48" preserveAspectRatio="none" className="w-full h-12" fill="#6a4d57">
+            <path d="M0,48 C480,0 960,48 1440,16 L1440,48 Z" />
           </svg>
         </div>
       </section>
@@ -233,23 +191,23 @@ export default function AboutPage() {
       {/* ══════════════════════════════
            WHO WE ARE — light bg
          ══════════════════════════════ */}
-      <section className="py-24 bg-white">
+      <section className="py-24" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <Reveal dir="left">
               <div className="relative">
-                <div className="rounded-3xl p-10 border-2 border-red-100 hover:border-red-300 transition-all duration-500 shadow-lg hover:shadow-xl"
-                  style={{ background: 'linear-gradient(135deg,#fff5f5 0%,#fff 100%)' }}>
+                <div className="rounded-3xl p-10 border-2 border-red-400/40 hover:border-red-400/60 transition-all duration-500 shadow-lg hover:shadow-xl"
+                  style={{ background: 'rgba(61,24,24,0.5)', backdropFilter: 'blur(12px)' }}>
                   <div className="h-1 w-20 rounded-full mb-8" style={{ background: 'linear-gradient(90deg,#e74c3c,#ff8080)' }} />
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden mb-6 shadow-xl ring-2 ring-red-200 hover:scale-110 transition-transform duration-300">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden mb-6 shadow-xl ring-2 ring-red-400/60 hover:scale-110 transition-transform duration-300">
                     <img src="/alfima.png" alt="Alfima" className="w-full h-full object-cover" />
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-4">Alfima Realty Inc.</h3>
-                  <p className="text-gray-600 leading-relaxed mb-6">A licensed and accredited real estate brokerage firm operating across the Philippines, specializing in residential, commercial, and investment properties.</p>
+                  <h3 className="text-2xl font-black text-white mb-4">Alfima Realty Inc.</h3>
+                  <p className="text-white/70 leading-relaxed mb-6">A licensed and accredited real estate brokerage firm operating across the Philippines, specializing in residential, commercial, and investment properties.</p>
                   <div className="flex flex-wrap gap-2">
                     {['PRC Licensed', 'HLURB Accredited', 'Trusted Since Day One'].map(t => (
                       <span key={t} className="px-3 py-1.5 rounded-full text-xs font-bold border"
-                        style={{ background: '#fff0f0', color: '#c0392b', borderColor: '#fcc' }}>{t}</span>
+                        style={{ background: 'rgba(231,76,60,0.3)', color: '#ff8080', borderColor: 'rgba(231,76,60,0.5)' }}>{t}</span>
                     ))}
                   </div>
                 </div>
@@ -264,9 +222,9 @@ export default function AboutPage() {
                   <div className="h-px w-8 bg-red-500" />
                   <span className="text-red-500 text-xs font-black tracking-[0.2em] uppercase">Who We Are</span>
                 </div>
-                <h2 className="text-4xl font-black text-gray-900 mb-6 leading-tight">Your Trusted Partner<br />in Real Estate</h2>
-                <div className="space-y-4 text-gray-600 text-base leading-relaxed">
-                  <p>At Alfima Realty Inc., we understand that a property is more than just a structure — it's a home, a milestone, and a legacy. We go beyond transactions to build lasting relationships.</p>
+                <h2 className="text-4xl font-black text-white mb-6 leading-tight">Your Trusted Partner<br />in Real Estate</h2>
+                <div className="space-y-4 text-white/70 text-base leading-relaxed">
+                  <p>At Alfima Realty Inc., we understand that a property is more than just a structure — it&apos;s a home, a milestone, and a legacy. We go beyond transactions to build lasting relationships.</p>
                   <p>Our licensed brokers bring deep local knowledge to guide you through every step — buying, selling, or leasing.</p>
                   <p>First-time buyer, seasoned investor, or business owner — Alfima has the network to get it done right.</p>
                 </div>
@@ -277,10 +235,10 @@ export default function AboutPage() {
       </section>
 
       {/* ══════════════════════════════
-           VALUES — red band
+           VALUES — dark maroon band
          ══════════════════════════════ */}
       <section className="py-24 relative overflow-hidden"
-        style={{ background: 'linear-gradient(160deg,#8b1a1a 0%,#a52020 40%,#8b1a1a 70%,#6b1414 100%)' }}>
+        style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
         <div className="absolute inset-0 opacity-10"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px,rgba(255,255,255,0.5) 1px,transparent 0)', backgroundSize: '28px 28px' }} />
         <FloatingParticles />
@@ -333,7 +291,7 @@ export default function AboutPage() {
       {/* ══════════════════════════════
            WHY CHOOSE US — light bg
          ══════════════════════════════ */}
-      <section className="py-24 bg-white">
+      <section className="py-24" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal>
             <div className="text-center mb-14">
@@ -342,7 +300,7 @@ export default function AboutPage() {
                 <span className="text-red-500 text-xs font-black tracking-[0.2em] uppercase">Why Alfima</span>
                 <div className="h-px w-10 bg-red-500" />
               </div>
-              <h2 className="text-4xl font-black text-gray-900">Why Choose Us</h2>
+              <h2 className="text-4xl font-black text-white">Why Choose Us</h2>
             </div>
           </Reveal>
 
@@ -353,20 +311,13 @@ export default function AboutPage() {
               { number: '03', title: 'End-to-End Support', desc: 'From property search to title transfer, we guide you through every step of the process.',     icon: <Home        className="w-6 h-6" />, bg: '#a93226' },
             ].map(({ number, title, desc, icon, bg }, i) => (
               <Reveal key={number} delay={i * 150} dir={i === 0 ? 'left' : i === 2 ? 'right' : 'up'}>
-                <div className="relative rounded-2xl overflow-hidden hover:-translate-y-3 hover:shadow-2xl transition-all duration-300 group cursor-default h-full flex flex-col border border-gray-100">
-                  <div className="h-2 w-full flex-shrink-0" style={{ background: bg }} />
-                  <div className="p-8 bg-white flex flex-col flex-1">
-                    <div className="flex items-start justify-between mb-6">
-                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
-                        style={{ background: bg }}>
-                        {icon}
-                      </div>
-                      <span className="text-7xl font-black leading-none select-none" style={{ color: `${bg}18` }}>{number}</span>
-                    </div>
-                    <div className="text-xs font-black tracking-[0.2em] uppercase mb-3" style={{ color: bg }}>{number}</div>
-                    <h3 className="text-gray-900 font-black text-xl mb-3">{title}</h3>
-                    <p className="text-gray-500 text-sm leading-relaxed flex-1">{desc}</p>
-                    <div className="h-1 w-0 group-hover:w-full mt-6 rounded-full transition-all duration-500 flex-shrink-0" style={{ background: bg }} />
+                <div className="group rounded-2xl p-8 hover:-translate-y-3 hover:shadow-2xl transition-all duration-300 cursor-default border border-white/25 hover:border-white/50 h-full flex flex-col"
+                  style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(12px)' }}>
+                  <div className="text-red-200/60 text-sm font-black mb-4">{number}</div>
+                  <h3 className="text-white font-black text-lg mb-3">{title}</h3>
+                  <p className="text-white/85 text-sm leading-relaxed mb-6 flex-grow">{desc}</p>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: bg + '40', color: bg }}>
+                    {icon}
                   </div>
                 </div>
               </Reveal>
@@ -376,40 +327,37 @@ export default function AboutPage() {
       </section>
 
       {/* ══════════════════════════════
-           CTA — red band
+           CTA — final call-to-action
          ══════════════════════════════ */}
-      <section className="py-24 px-4 relative overflow-hidden"
-        style={{ background: 'linear-gradient(145deg,#8b1a1a 0%,#a52020 50%,#6b1414 100%)' }}>
+      <section className="py-24 relative overflow-hidden"
+        style={{ background: 'linear-gradient(145deg,#7a1818 0%,#a02020 35%,#7a1818 65%,#4a0e0e 100%)' }}>
+        <div className="absolute inset-0 opacity-10"
+          style={{ backgroundImage: 'radial-gradient(circle at 1px 1px,rgba(255,255,255,0.5) 1px,transparent 0)', backgroundSize: '30px 30px' }} />
         <FloatingParticles />
-        <div className="max-w-4xl mx-auto text-center relative z-10">
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <Reveal>
-            <div className="inline-flex items-center gap-3 mb-5 justify-center">
-              <div className="h-px w-10 bg-white/50" />
-              <span className="text-white/80 text-xs font-black tracking-[0.2em] uppercase">Let's Get Started</span>
-              <div className="h-px w-10 bg-white/50" />
-            </div>
-            <h2 className="text-4xl sm:text-5xl font-black text-white mb-5 drop-shadow-xl">
-              Ready to Find Your<br />Dream Property?
-            </h2>
-            <p className="text-white/80 text-lg mb-10 max-w-xl mx-auto">
-              Let Alfima Realty Inc. guide you home. Talk to one of our licensed agents today.
-            </p>
+            <h2 className="text-4xl sm:text-5xl font-black text-white mb-6">Ready to Find Your Dream Property?</h2>
+          </Reveal>
+          <Reveal delay={150}>
+            <p className="text-white/80 text-lg mb-10 max-w-2xl mx-auto">Let our team of licensed professionals guide you through the journey. Whether you&apos;re buying, selling, or investing, we&apos;re here to help.</p>
+          </Reveal>
+          <Reveal delay={300}>
             <div className="flex gap-4 justify-center flex-wrap">
-              <Link href="/properties">
-                <button className="inline-flex items-center gap-2 bg-white text-red-800 font-black px-8 py-4 rounded-full hover:bg-red-50 shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-200 text-base">
-                  Browse Properties <ArrowRight className="w-5 h-5" />
+              <Link href="/">
+                <button className="inline-flex items-center gap-2 bg-white text-red-800 font-black px-8 py-4 rounded-full hover:bg-red-50 shadow-xl hover:scale-105 hover:shadow-2xl transition-all duration-200">
+                  Explore Services <ArrowRight className="w-4 h-4" />
                 </button>
               </Link>
               <Link href="/contact">
-                <button className="inline-flex items-center gap-2 border-2 border-white/50 hover:border-white text-white font-bold px-8 py-4 rounded-full hover:bg-white/10 hover:scale-105 transition-all duration-200 text-base">
-                  <Phone className="w-5 h-5" /> Get in Touch
+                <button className="inline-flex items-center gap-2 border-2 border-white/50 hover:border-white text-white font-bold px-8 py-4 rounded-full hover:bg-white/10 hover:scale-105 transition-all duration-200">
+                  Get in Touch
                 </button>
               </Link>
             </div>
           </Reveal>
         </div>
       </section>
-
     </div>
   );
 }

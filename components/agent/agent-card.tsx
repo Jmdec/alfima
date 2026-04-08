@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Agent, Tour } from '@/lib/types';
-import { Star, Phone, Mail, MessageSquare, X, Send, CheckCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Star, Phone, MessageSquare, X, Send, CheckCircle, TrendingUp, Home } from 'lucide-react';
 
 interface AgentCardProps {
   agent: Agent;
@@ -31,7 +31,6 @@ function MessageModal({ agent, onClose }: { agent: Agent; onClose: () => void })
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
-          {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <img src={agent.avatar ?? '/placeholder-avatar.png'} alt={agent.name}
@@ -46,7 +45,6 @@ function MessageModal({ agent, onClose }: { agent: Agent; onClose: () => void })
               <X className="w-4 h-4 text-gray-500" />
             </button>
           </div>
-
           <p className="text-xs text-gray-400 uppercase tracking-widest mb-3 font-black">Choose a channel</p>
           <div className="grid grid-cols-2 gap-3">
             {options.map(opt => (
@@ -227,112 +225,112 @@ export function AgentCard({ agent, onReviewed }: AgentCardProps) {
     onReviewed?.();
   };
 
+  const ratingVal = Number(agent.rating ?? 0);
+
   return (
     <>
-      <div className="h-full bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col group">
+      <Link href={`/agents/${agent.id}`} className="block h-full">
+        <div className="h-full relative bg-white rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 flex flex-col group cursor-pointer border border-gray-100/80">
 
-        {/* ── Cover band — red gradient with subtle pattern ── */}
-        <div className="h-28 flex-shrink-0 relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg,#c0392b 0%,#e74c3c 50%,#a93226 100%)' }}>
-          {/* dot pattern overlay */}
-          <div className="absolute inset-0 opacity-20"
-            style={{ backgroundImage: 'radial-gradient(circle at 1px 1px,rgba(255,255,255,0.6) 1px,transparent 0)', backgroundSize: '18px 18px' }} />
-          {/* bottom fade */}
-          <div className="absolute bottom-0 left-0 w-full h-8"
-            style={{ background: 'linear-gradient(to bottom,transparent,rgba(0,0,0,0.15))' }} />
-        </div>
+          {/* ── Accent sidebar strip ── */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-3xl"
+            style={{ background: 'linear-gradient(180deg,#e74c3c 0%,#c0392b 60%,#96281b 100%)' }}
+          />
 
-        {/* ── Body ── */}
-        <div className="px-6 pb-6 flex flex-col flex-1">
-
-          {/* Avatar — overlaps the cover */}
-          <div className="flex justify-center -mt-12 mb-3">
-            <div className="relative">
-              <img
-                src={agent.avatar ?? '/placeholder-avatar.png'}
-                alt={agent.name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg group-hover:scale-105 transition-transform duration-300"
-              />
-              {/* online dot */}
-              <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-green-400 border-2 border-white shadow-sm" />
-            </div>
-          </div>
-
-          {/* Name */}
-          <div className="text-center mb-1">
-            <h3 className="font-black text-lg text-gray-900 leading-tight">{agent.name}</h3>
-          </div>
-
-          {/* Stars + review count */}
-          <div className="flex items-center justify-center gap-1 mb-4">
-            <div className="flex">
-              {[...Array(5)].map((_,i) => (
-                <Star key={i} className={`w-3.5 h-3.5 ${i < Math.round(agent.rating ?? 0) ? 'fill-yellow-400 stroke-yellow-400' : 'stroke-gray-200 fill-gray-100'}`} />
-              ))}
-            </div>
-            <span className="text-xs text-gray-400 ml-1 font-medium">
-              {Number(agent.rating ?? 0).toFixed(1)}
-              <span className="text-gray-300 mx-1">·</span>
-              {agent.review_count ?? 0} {(agent.review_count ?? 0) === 1 ? 'review' : 'reviews'}
-            </span>
-          </div>
-
-          {/* Stats row */}
-          <div className="flex justify-center gap-6 mb-4 pb-4 border-b border-gray-100">
-            <div className="text-center">
-              <p className="font-black text-gray-900 text-lg leading-none">{agent.listings ?? 0}</p>
-              <p className="text-gray-400 text-xs mt-0.5 font-medium">Properties</p>
-            </div>
-            <div className="w-px bg-gray-100" />
-            <div className="text-center">
-              <p className="font-black text-gray-900 text-lg leading-none">{Number(agent.rating ?? 0).toFixed(1)}</p>
-              <p className="text-gray-400 text-xs mt-0.5 font-medium">Rating</p>
-            </div>
-          </div>
-
-          {/* Contact info */}
-          <div className="space-y-2 mb-4">
-            <div className="flex items-center gap-2.5 text-sm text-gray-500">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: '#fff0f0' }}>
-                <Phone className="w-3.5 h-3.5 text-red-500" />
+          {/* ── Top section: avatar + badge ── */}
+          <div className="pt-7 pb-5 px-7 flex items-center gap-5">
+            {/* Avatar with ring */}
+            <div className="relative flex-shrink-0">
+              <div
+                className="w-[72px] h-[72px] rounded-2xl p-[3px] transition-transform duration-300 group-hover:scale-105"
+                style={{ background: 'linear-gradient(135deg,#e74c3c,#c0392b)' }}
+              >
+                <img
+                  src={agent.avatar ?? '/placeholder-avatar.png'}
+                  alt={agent.name}
+                  className="w-full h-full rounded-xl object-cover bg-gray-100"
+                />
               </div>
-              <span className="font-medium text-gray-700">{agent.phone ?? 'N/A'}</span>
+              {/* Online dot */}
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white shadow-sm" />
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-gray-500">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: '#fff0f0' }}>
-                <Mail className="w-3.5 h-3.5 text-red-500" />
+
+            {/* Name + rating inline */}
+            <div className="min-w-0 flex-1">
+              <h3 className="font-extrabold text-gray-900 text-base leading-tight truncate group-hover:text-red-700 transition-colors duration-200">
+                {agent.name}
+              </h3>
+              <p className="text-xs text-gray-400 font-medium mt-0.5 mb-2">Licensed Real Estate Agent</p>
+
+              {/* Stars compact */}
+              <div className="flex items-center gap-1.5">
+                <div className="flex gap-0.5">
+                  {[...Array(5)].map((_,i) => (
+                    <Star
+                      key={i}
+                      className={`w-3 h-3 ${i < Math.round(ratingVal) ? 'fill-amber-400 stroke-amber-400' : 'stroke-gray-200 fill-gray-100'}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[11px] font-bold text-gray-700">{ratingVal.toFixed(1)}</span>
+                <span className="text-[11px] text-gray-400">
+                  ({agent.review_count ?? 0} {(agent.review_count ?? 0) === 1 ? 'review' : 'reviews'})
+                </span>
               </div>
-              <span className="font-medium text-gray-700 truncate">{agent.email}</span>
             </div>
           </div>
 
-          {/* Spacer */}
-          <div className="flex-1" />
+          {/* ── Divider ── */}
+          <div className="mx-7 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
-          {/* Review banner — reserved slot */}
-          <div className="mb-3 min-h-[36px]">
+          {/* ── Stats row ── */}
+          <div className="flex mx-7 my-5 gap-3">
+            {/* Properties */}
+            <div className="flex-1 bg-gray-50 rounded-2xl px-4 py-3.5 flex flex-col gap-1 border border-gray-100 hover:border-red-100 transition-colors">
+              <div className="flex items-center gap-1.5">
+                <Home className="w-3.5 h-3.5 text-red-500" />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Properties</span>
+              </div>
+              <p className="text-2xl font-black text-gray-900 leading-none">{agent.listings ?? 0}</p>
+            </div>
+
+            {/* Reviews */}
+            <div className="flex-1 bg-gray-50 rounded-2xl px-4 py-3.5 flex flex-col gap-1 border border-gray-100 hover:border-red-100 transition-colors">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-red-500" />
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Reviews</span>
+              </div>
+              <p className="text-2xl font-black text-gray-900 leading-none">{agent.review_count ?? 0}</p>
+            </div>
+          </div>
+
+          {/* ── Review banner ── */}
+          <div className="px-7 pb-7 mt-auto">
             {!checkingTour && completedTour && (
               alreadyReviewed ? (
-                <div className="flex items-center justify-center gap-2 text-green-600 text-xs font-bold bg-green-50 border border-green-200 rounded-xl py-2 px-3">
+                <div className="flex items-center justify-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 border border-emerald-200 rounded-2xl py-2.5 px-3">
                   <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   You reviewed this agent
                 </div>
               ) : (
                 <button
-                  onClick={() => setShowRateModal(true)}
-                  className="w-full flex items-center justify-center gap-2 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 text-yellow-700 text-xs font-bold rounded-xl py-2 transition-colors">
-                  <Star className="w-3.5 h-3.5 flex-shrink-0" />
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setShowRateModal(true); }}
+                  className="w-full flex items-center justify-center gap-2 text-xs font-bold rounded-2xl py-2.5 transition-all hover:scale-[1.02]"
+                  style={{ background: 'linear-gradient(135deg,#fef9c3,#fef08a)', border: '1px solid #fde047', color: '#a16207' }}
+                >
+                  <Star className="w-3.5 h-3.5 flex-shrink-0 fill-yellow-500 stroke-yellow-500" />
                   Rate your experience
                 </button>
               )
             )}
           </div>
 
-          {/* CTA buttons */}
-          <div className="flex gap-2">
-            <a href={`tel:${agent.phone}`} className="flex-1">
+          {/* ── CTA buttons (hidden, preserved) ── */}
+          {/* <div className="flex gap-2 mt-auto">
+            <a href={`tel:${agent.phone}`}
+              className="flex-1"
+              onClick={e => e.stopPropagation()}>
               <button
                 className="w-full py-2.5 rounded-xl text-white text-sm font-black flex items-center justify-center gap-1.5 transition-all hover:scale-[1.03] hover:shadow-lg"
                 style={{ background: 'linear-gradient(135deg,#c0392b,#96281b)', boxShadow: '0 4px 14px rgba(192,57,43,0.3)' }}>
@@ -341,13 +339,13 @@ export function AgentCard({ agent, onReviewed }: AgentCardProps) {
             </a>
             <button
               className="flex-1 py-2.5 rounded-xl text-gray-700 text-sm font-black flex items-center justify-center gap-1.5 border-2 border-gray-200 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-all"
-              onClick={() => setShowMessageModal(true)}>
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setShowMessageModal(true); }}>
               <MessageSquare className="w-4 h-4" /> Message
             </button>
-          </div>
+          </div> */}
 
         </div>
-      </div>
+      </Link>
 
       {showMessageModal && (
         <MessageModal agent={agent} onClose={() => setShowMessageModal(false)} />

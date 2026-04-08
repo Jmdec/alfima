@@ -6,6 +6,7 @@ import { HeroSection } from '@/components/home/HeroSection';
 import { StatsSection } from '@/components/home/StatsSection';
 import { FeaturedProperties } from '@/components/home/FeaturedProperties';
 import { WhyChooseUs, HowItWorks } from '@/components/home/WhyAndHow';
+import { TestimonialsSection } from '@/components/home/TestimonialsSection';
 import { CTASection } from '@/components/home/CTASection';
 
 export default function HomePage() {
@@ -43,10 +44,11 @@ export default function HomePage() {
     <div className="w-full">
       <HeroStyles />
       <HeroSection onSearch={handleSearch} />
-      <StatsSection />
+      {/* <StatsSection /> */}
       <FeaturedProperties properties={featuredProperties} loading={loading} />
       <WhyChooseUs />
       <HowItWorks />
+      <TestimonialsSection />
       <CTASection />
     </div>
   );

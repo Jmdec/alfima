@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Home, Users, FileText, Settings,
   MapPin, Wrench, LogOut, ChevronRight, Menu, X,
-  TrendingUp, Calendar, MessageSquare, MessageCircle,
+  TrendingUp, Calendar, MessageSquare, MessageCircle, Star
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
     section: 'Overview',
     items: [
       { label: 'Dashboard',  href: '/admin',           icon: LayoutDashboard },
-{ label: 'Chat', href: '/admin/chat', icon: MessageCircle },
+      { label: 'Chat',       href: '/admin/chat',       icon: MessageCircle },
     ],
   },
   {
@@ -23,21 +23,21 @@ const NAV_ITEMS = [
     items: [
       { label: 'Properties', href: '/admin/properties', icon: Home },
       { label: 'Agents',     href: '/admin/agents',     icon: Users },
-
     ],
   },
   {
     section: 'Content',
     items: [
-     
-      { label: 'Inquiries',  href: '/admin/inquiries',  icon: MessageSquare },
-      { label: 'Tours',      href: '/admin/tours',      icon: Calendar },
+      { label: 'Contacts',    href: '/admin/contacts',    icon: MessageSquare }, 
+      { label: 'Inquiries',    href: '/admin/inquiries',    icon: MessageSquare },
+      { label: 'Tours',        href: '/admin/tours',        icon: Calendar },
+      { label: 'Testimonials', href: '/admin/testimonials', icon: Star },
     ],
   },
   {
     section: 'Config',
     items: [
-      { label: 'Settings',   href: '/admin/settings',   icon: Settings },
+      { label: 'Settings', href: '/admin/settings', icon: Settings },
     ],
   },
 ];
@@ -54,6 +54,32 @@ function SidebarInner({
   const pathname = usePathname();
   const router   = useRouter();
   const { user, logout } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const response = await fetch('/api/admin/properties/pending-count');
+        if (response.ok) {
+          const data = await response.json();
+          setPendingCount(data.count || 0);
+        }
+      } catch (error) {
+        console.error('[v0] Error fetching pending count:', error);
+      }
+    };
+
+    fetchPendingCount();
+    const interval = setInterval(fetchPendingCount, 5000);
+
+    const handlePropertyUpdate = () => fetchPendingCount();
+    window.addEventListener('propertyUpdated', handlePropertyUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('propertyUpdated', handlePropertyUpdate);
+    };
+  }, []);
 
   const isActive = (href: string) =>
     href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
@@ -96,6 +122,8 @@ function SidebarInner({
             <ul className="space-y-0.5">
               {group.items.map(({ label, href, icon: Icon }) => {
                 const active = isActive(href);
+                const showBadge = label === 'Properties' && pendingCount > 0;
+
                 return (
                   <li key={href}>
                     <Link
@@ -111,14 +139,37 @@ function SidebarInner({
                       {active && !collapsed && (
                         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-red-500 rounded-full" />
                       )}
-                      <Icon className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                        active ? 'text-red-500' : 'text-slate-400 group-hover:text-slate-600'
-                      }`} />
+
+                      {/* Icon — with small dot indicator when collapsed */}
+                      <div className="relative flex-shrink-0">
+                        <Icon className={`w-4 h-4 transition-colors ${
+                          active ? 'text-red-500' : 'text-slate-400 group-hover:text-slate-600'
+                        }`} />
+                        {/* Small dot shown only in collapsed mode */}
+                        {showBadge && collapsed && (
+                          <span className="absolute -top-1.5 -right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+                        )}
+                      </div>
+
+                      {/* Expanded label + text badge */}
                       {!collapsed && (
-                        <>
-                          <span className="flex-1">{label}</span>
-                          {active && <ChevronRight className="w-3 h-3 text-red-400/70" />}
-                        </>
+                        <div className="flex-1 min-w-0 flex flex-col gap-0">
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1 min-w-0">{label}</span>
+                            {showBadge ? (
+                              <span className="flex-shrink-0 px-2 py-0.5 bg-red-500 text-white rounded-full text-xs font-bold whitespace-nowrap">
+                                {pendingCount} pending
+                              </span>
+                            ) : (
+                              active && <ChevronRight className="w-3 h-3 flex-shrink-0 text-red-400/70" />
+                            )}
+                          </div>
+                          {showBadge && (
+                            <span style={{animation: 'badgeBounce 1s ease-in-out infinite'}} className="text-[10px] font-semibold text-red-400 leading-tight">
+                              Review {pendingCount === 1 ? 'this property' : `these ${pendingCount} properties`} now
+                            </span>
+                          )}
+                        </div>
                       )}
                     </Link>
                   </li>
@@ -176,6 +227,10 @@ export function AdminSidebar() {
       <style>{`
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes badgeBounce {
+          0%, 100% { transform: translateY(0); opacity: 1; }
+          50% { transform: translateY(-3px); opacity: 0.75; }
+        }
       `}</style>
       <aside
         className={`
@@ -183,7 +238,7 @@ export function AdminSidebar() {
           h-screen
           bg-white border-r border-slate-200
           transition-all duration-300 shadow-sm
-          ${collapsed ? 'w-[68px]' : 'w-56'}
+          ${collapsed ? 'w-[68px]' : 'w-72'}
         `}
       >
         <SidebarInner collapsed={collapsed} setCollapsed={setCollapsed} />
@@ -202,6 +257,10 @@ export function AdminMobileTopbar() {
         @keyframes slideInLeft {
           from { transform: translateX(-100%); opacity: 0; }
           to   { transform: translateX(0);     opacity: 1; }
+        }
+        @keyframes badgeBounce {
+          0%, 100% { transform: translateY(0); opacity: 1; }
+          50% { transform: translateY(-3px); opacity: 0.75; }
         }
       `}</style>
 

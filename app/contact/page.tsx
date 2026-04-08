@@ -18,73 +18,12 @@ function useReveal(threshold = 0.12) {
   return { ref, visible };
 }
 
-function useCounter(target: number, duration = 1600, started = false) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!started) return;
-    let val = 0;
-    const step = target / (duration / 16);
-    const t = setInterval(() => {
-      val += step;
-      if (val >= target) { setCount(target); clearInterval(t); }
-      else setCount(Math.floor(val));
-    }, 16);
-    return () => clearInterval(t);
-  }, [started, target]);
-  return count;
-}
-
 function Reveal({ children, delay = 0, dir = 'up' }: { children: React.ReactNode; delay?: number; dir?: 'up' | 'left' | 'right' }) {
   const { ref, visible } = useReveal();
   const t = dir === 'left' ? 'translateX(-50px)' : dir === 'right' ? 'translateX(50px)' : 'translateY(45px)';
   return (
     <div ref={ref} style={{ opacity: visible ? 1 : 0, transform: visible ? 'none' : t, transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms` }}>
       {children}
-    </div>
-  );
-}
-
-function StatCard({ value, suffix, label, icon, delay = 0 }: {
-  value: number; suffix: string; label: string; icon: React.ReactNode; delay?: number;
-}) {
-  const { ref, visible } = useReveal(0.3);
-  const count = useCounter(value, 1600, visible);
-  return (
-    <div ref={ref}
-      className="rounded-2xl p-5 border border-white/15 hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default group"
-      style={{
-        background: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(12px)',
-        opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(30px)',
-        transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms`,
-      }}>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform duration-300"
-        style={{ background: 'rgba(231,76,60,0.55)', border: '1px solid rgba(231,76,60,0.4)' }}>
-        {icon}
-      </div>
-      <div className="text-3xl font-black text-white mb-1 leading-none">{count}{suffix}</div>
-      <div className="text-xs text-red-100/55 font-semibold tracking-wide">{label}</div>
-    </div>
-  );
-}
-
-function StatCardStatic({ headline, label, icon, delay = 0 }: {
-  headline: string; label: string; icon: React.ReactNode; delay?: number;
-}) {
-  const { ref, visible } = useReveal(0.3);
-  return (
-    <div ref={ref}
-      className="rounded-2xl p-5 border border-white/15 hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-default group"
-      style={{
-        background: 'rgba(0,0,0,0.28)', backdropFilter: 'blur(12px)',
-        opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(30px)',
-        transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms`,
-      }}>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-4 text-white group-hover:scale-110 transition-transform duration-300"
-        style={{ background: 'rgba(231,76,60,0.55)', border: '1px solid rgba(231,76,60,0.4)' }}>
-        {icon}
-      </div>
-      <div className="text-3xl font-black text-white mb-1 leading-none">{headline}</div>
-      <div className="text-xs text-red-100/55 font-semibold tracking-wide">{label}</div>
     </div>
   );
 }
@@ -160,7 +99,7 @@ export default function ContactPage() {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-white">
+    <div className="w-full min-h-screen" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
       <style>{`
         @keyframes float-p0{0%,100%{transform:translateY(0)}50%{transform:translateY(-18px)}}
         @keyframes float-p1{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
@@ -170,7 +109,7 @@ export default function ContactPage() {
 
       {/* ── HERO ── */}
       <section className="relative pt-32 pb-28 overflow-hidden"
-        style={{ background: 'linear-gradient(145deg,#7a1818 0%,#a02020 35%,#7a1818 65%,#4a0e0e 100%)' }}>
+        style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
 
         <div className="absolute inset-0 opacity-10"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px,rgba(255,255,255,0.5) 1px,transparent 0)', backgroundSize: '30px 30px' }} />
@@ -188,8 +127,8 @@ export default function ContactPage() {
             <div>
               <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? 'none' : 'translateY(35px)', transition: 'opacity .8s ease 0ms, transform .8s ease 0ms' }}>
                 <div className="inline-flex items-center gap-2 mb-5">
-                  <div className="h-px w-10 bg-red-200/70" />
-                  <span className="text-red-200 text-xs font-black tracking-[0.2em] uppercase">We'd Love to Hear From You</span>
+                  <div className="h-px w-10" style={{background:'linear-gradient(90deg,#e8a8a0,#d4a5a0)'}} />
+                  <span className="text-red-200 text-xs font-black tracking-[0.2em] uppercase">We&apos;d Love to Hear From You</span>
                 </div>
               </div>
 
@@ -248,45 +187,48 @@ export default function ContactPage() {
               </div>
             </div>
 
-            {/* RIGHT — stat cards */}
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard       value={24}  suffix="h"   label="Response Time"       icon={<Clock        className="w-4 h-4" />} delay={200} />
-              <StatCard       value={100} suffix="%"   label="Client Satisfaction" icon={<CheckCircle2 className="w-4 h-4" />} delay={350} />
-              <StatCardStatic headline="Free"          label="Consultation"        icon={<Phone        className="w-4 h-4" />} delay={500} />
-              <StatCard       value={7}   suffix="d"   label="Available Support"   icon={<Mail         className="w-4 h-4" />} delay={650} />
+            {/* RIGHT — image */}
+            <div className="flex items-center justify-center">
+              <Reveal dir="right" delay={200}>
+                <img 
+                  src="/contact/get-in-touch.png" 
+                  alt="Alfima Realty Contact Stats" 
+                  className="w-full max-w-md rounded-3xl shadow-2xl hover:scale-105 transition-transform duration-300"
+                />
+              </Reveal>
             </div>
 
           </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 w-full overflow-hidden">
-          <svg viewBox="0 0 1440 70" preserveAspectRatio="none" className="w-full h-14" fill="white">
-            <path d="M0,70 C480,0 960,70 1440,20 L1440,70 Z" />
+         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
+          <svg viewBox="0 0 1440 48" preserveAspectRatio="none" className="w-full h-12" fill="#6a4d57">
+            <path d="M0,48 C480,0 960,48 1440,16 L1440,48 Z" />
           </svg>
         </div>
       </section>
 
       {/* ── CONTACT SECTION ── */}
-      <section id="contact-form" className="py-20 bg-white">
+      <section id="contact-form" className="py-20" style={{ background: 'linear-gradient(145deg,#3d1818 0%,#4a1f1f 50%,#2d1212 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
             {/* Sidebar */}
             <Reveal dir="left">
               <div className="space-y-4">
-                <div className="rounded-2xl p-6 border-2 border-red-100 shadow-sm"
-                  style={{ background: 'linear-gradient(135deg,#fff5f5 0%,#fff 100%)' }}>
+                <div className="rounded-2xl p-6 border-2 border-red-400/40 shadow-sm"
+                  style={{ background: 'rgba(61,24,24,0.5)', backdropFilter: 'blur(12px)' }}>
                   <div className="h-1 w-12 rounded-full mb-5" style={{ background: 'linear-gradient(90deg,#e74c3c,#ff8080)' }} />
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="w-11 h-11 rounded-xl overflow-hidden ring-2 ring-red-200">
+                    <div className="w-11 h-11 rounded-xl overflow-hidden ring-2 ring-red-400/60">
                       <img src="/alfima.png" alt="Alfima" className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <p className="text-gray-900 font-black">Alfima Realty Inc.</p>
-                      <p className="text-red-500 text-xs font-medium">Licensed Real Estate Broker</p>
+                      <p className="text-white font-black">Alfima Realty Inc.</p>
+                      <p className="text-red-400 text-xs font-medium">Licensed Real Estate Broker</p>
                     </div>
                   </div>
-                  <p className="text-gray-500 text-sm leading-relaxed">Helping Filipinos find their dream properties since day one. Reach out — let's talk about what you need.</p>
+                  <p className="text-white/70 text-sm leading-relaxed">Helping Filipinos find their dream properties since day one. Reach out — let&apos;s talk about what you need.</p>
                 </div>
 
                 {[
@@ -296,16 +238,16 @@ export default function ContactPage() {
                   { icon: <Clock  className="w-5 h-5" />, label: 'Business Hours', lines: ['Mon – Fri: 9:00 AM – 6:00 PM', 'Saturday: 10:00 AM – 4:00 PM', 'Sunday: Closed'] },
                 ].map(({ icon, label, lines, links }, i) => (
                   <Reveal key={label} delay={i * 80}>
-                    <div className="rounded-2xl p-5 bg-white hover:-translate-y-1 hover:shadow-lg transition-all duration-300 group border border-gray-100 shadow-sm">
+                    <div className="rounded-2xl p-5 hover:-translate-y-1 hover:shadow-lg transition-all duration-300 group border border-red-400/40 shadow-sm" style={{ background: 'rgba(61,24,24,0.5)', backdropFilter: 'blur(12px)' }}>
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
-                          style={{ background: '#c0392b' }}>{icon}</div>
+                          style={{ background: 'rgba(231,76,60,0.6)' }}>{icon}</div>
                         <div>
-                          <p className="text-gray-400 text-xs font-black uppercase tracking-widest mb-1">{label}</p>
+                          <p className="text-red-300/70 text-xs font-black uppercase tracking-widest mb-1">{label}</p>
                           {lines.map((line, j) => (
                             links?.[j]
-                              ? <a key={j} href={links[j]} className="block text-gray-800 hover:text-red-600 text-sm font-medium transition-colors">{line}</a>
-                              : <p key={j} className="text-gray-600 text-sm">{line}</p>
+                              ? <a key={j} href={links[j]} className="block text-white/80 hover:text-red-400 text-sm font-medium transition-colors">{line}</a>
+                              : <p key={j} className="text-white/70 text-sm">{line}</p>
                           ))}
                         </div>
                       </div>
@@ -314,15 +256,15 @@ export default function ContactPage() {
                 ))}
 
                 <Reveal delay={320}>
-                  <div className="rounded-2xl p-5 bg-white border border-gray-100 shadow-sm">
-                    <p className="text-gray-400 text-xs font-black uppercase tracking-widest mb-3">Follow Us</p>
+                  <div className="rounded-2xl p-5 border border-red-400/40 shadow-sm" style={{ background: 'rgba(61,24,24,0.5)', backdropFilter: 'blur(12px)' }}>
+                    <p className="text-red-300/70 text-xs font-black uppercase tracking-widest mb-3">Follow Us</p>
                     <div className="flex gap-3">
                       {[
                         { icon: <Facebook  className="w-4 h-4" />, label: 'Facebook',  href: '#' },
                         { icon: <Instagram className="w-4 h-4" />, label: 'Instagram', href: '#' },
                       ].map(({ icon, label, href }) => (
                         <a key={label} href={href}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-gray-600 hover:text-white transition-all text-sm font-bold border border-gray-200 hover:border-red-600 hover:bg-red-600 hover:scale-105">
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white/60 hover:text-white transition-all text-sm font-bold border border-red-600/30 hover:border-red-600 hover:bg-red-600/80 hover:scale-105">
                           {icon} {label}
                         </a>
                       ))}
@@ -335,7 +277,7 @@ export default function ContactPage() {
             {/* Form */}
             <div className="lg:col-span-2">
               <Reveal dir="right" delay={100}>
-                <div className="rounded-3xl overflow-hidden shadow-xl border border-gray-100">
+                <div className="rounded-3xl overflow-hidden shadow-xl border border-red-400/40">
                   <div className="px-10 pt-10 pb-6 border-b border-red-900/20"
                     style={{ background: 'linear-gradient(135deg,#c0392b,#96281b)' }}>
                     <div className="flex items-center gap-4">
@@ -344,93 +286,77 @@ export default function ContactPage() {
                       </div>
                       <div>
                         <h2 className="text-2xl font-black text-white">Send Us a Message</h2>
-                        <p className="text-white/70 text-sm">We'll get back to you within 24 hours</p>
+                        <p className="text-white/70 text-sm">We&apos;ll get back to you within 24 hours</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-10 bg-white">
+                  <div className="p-10" style={{ background: 'rgba(61,24,24,0.5)', backdropFilter: 'blur(12px)' }}>
                     {status === 'success' ? (
-                      <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 bg-green-100">
-                          <CheckCircle2 className="w-10 h-10 text-green-500" />
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 bg-green-600/30">
+                          <CheckCircle2 className="w-10 h-10 text-green-400" />
                         </div>
-                        <h3 className="text-gray-900 text-2xl font-black mb-2">Message Sent!</h3>
-                        <p className="text-gray-500 max-w-sm">Thank you for reaching out. Our team will get back to you within 24 hours.</p>
+                        <h3 className="text-white text-2xl font-black mb-2">Message Sent!</h3>
+                        <p className="text-white/70 max-w-sm">Thank you for reaching out. Our team will get back to you within 24 hours.</p>
                       </div>
                     ) : (
                       <form onSubmit={handleSubmit} className="space-y-6">
 
                         {/* Error banner */}
                         {status === 'error' && (
-                          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-800/40 border border-red-500/60 text-red-200">
                             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                            <p className="text-sm font-medium">{errorMsg}</p>
+                            <p>{errorMsg}</p>
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Full Name *</label>
-                            <input type="text" name="name" value={formData.name} onChange={handleChange} required
-                              className="w-full px-4 py-3.5 rounded-xl text-gray-900 bg-gray-50 border-2 border-gray-200 focus:border-red-500 focus:bg-white focus:outline-none transition-all text-sm font-medium placeholder-gray-400"
-                              placeholder="Juan dela Cruz" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Phone Number</label>
-                            <input type="tel" name="phone" value={formData.phone} onChange={handleChange}
-                              className="w-full px-4 py-3.5 rounded-xl text-gray-900 bg-gray-50 border-2 border-gray-200 focus:border-red-500 focus:bg-white focus:outline-none transition-all text-sm font-medium placeholder-gray-400"
-                              placeholder="+63 917 000 0000" />
-                          </div>
+                        <div>
+                          <label className="block text-sm font-bold text-white/80 mb-3">Your Name</label>
+                          <input type="text" name="name" value={formData.name} onChange={handleChange} required
+                            className="w-full px-4 py-3 rounded-xl border border-red-400/40 bg-white/10 text-white placeholder-white/40 focus:outline-none focus:border-red-400/80 focus:ring-1 focus:ring-red-400/60 transition-all"
+                            placeholder="John Doe" />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Email Address *</label>
+                          <label className="block text-sm font-bold text-white/80 mb-3">Email Address</label>
                           <input type="email" name="email" value={formData.email} onChange={handleChange} required
-                            className="w-full px-4 py-3.5 rounded-xl text-gray-900 bg-gray-50 border-2 border-gray-200 focus:border-red-500 focus:bg-white focus:outline-none transition-all text-sm font-medium placeholder-gray-400"
-                            placeholder="juan@email.com" />
+                            className="w-full px-4 py-3 rounded-xl border border-red-400/40 bg-white/10 text-white placeholder-white/40 focus:outline-none focus:border-red-400/80 focus:ring-1 focus:ring-red-400/60 transition-all"
+                            placeholder="john@example.com" />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Subject *</label>
-                          <select name="subject" value={formData.subject} onChange={handleChange} required
-                            className="w-full px-4 py-3.5 rounded-xl text-gray-900 bg-gray-50 border-2 border-gray-200 focus:border-red-500 focus:bg-white focus:outline-none transition-all text-sm font-medium">
-                            <option value="">Select a topic...</option>
-                            <option value="General Inquiry">General Inquiry</option>
-                            <option value="Property Question">Property Question</option>
-                            <option value="Connect with an Agent">Connect with an Agent</option>
-                            <option value="Schedule a Viewing">Schedule a Viewing</option>
-                            <option value="List My Property">List My Property</option>
-                            <option value="Customer Support">Customer Support</option>
-                          </select>
+                          <label className="block text-sm font-bold text-white/80 mb-3">Phone Number</label>
+                          <input type="tel" name="phone" value={formData.phone} onChange={handleChange}
+                            className="w-full px-4 py-3 rounded-xl border border-red-400/40 bg-white/10 text-white placeholder-white/40 focus:outline-none focus:border-red-400/80 focus:ring-1 focus:ring-red-400/60 transition-all"
+                            placeholder="+63 917 123 4567" />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Message *</label>
+                          <label className="block text-sm font-bold text-white/80 mb-3">Subject</label>
+                          <input type="text" name="subject" value={formData.subject} onChange={handleChange} required
+                            className="w-full px-4 py-3 rounded-xl border border-red-400/40 bg-white/10 text-white placeholder-white/40 focus:outline-none focus:border-red-400/80 focus:ring-1 focus:ring-red-400/60 transition-all"
+                            placeholder="How can we help?" />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-bold text-white/80 mb-3">Message</label>
                           <textarea name="message" value={formData.message} onChange={handleChange} required rows={5}
-                            className="w-full px-4 py-3.5 rounded-xl text-gray-900 bg-gray-50 border-2 border-gray-200 focus:border-red-500 focus:bg-white focus:outline-none transition-all text-sm font-medium placeholder-gray-400 resize-none"
-                            placeholder="Tell us more about what you're looking for..." />
+                            className="w-full px-4 py-3 rounded-xl border border-red-400/40 bg-white/10 text-white placeholder-white/40 focus:outline-none focus:border-red-400/80 focus:ring-1 focus:ring-red-400/60 transition-all resize-none"
+                            placeholder="Tell us more..." />
                         </div>
 
                         <button type="submit" disabled={status === 'loading'}
-                          className="w-full inline-flex items-center justify-center gap-3 text-white font-black py-4 rounded-xl transition-all hover:scale-[1.02] hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-base"
-                          style={{ background: 'linear-gradient(135deg,#c0392b,#96281b)', boxShadow: '0 8px 25px rgba(192,57,43,0.35)' }}>
-                          {status === 'loading'
-                            ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Sending your message…</>
-                            : <><Send className="w-5 h-5" /> Send Message</>
-                          }
+                          className="w-full py-4 rounded-xl font-black text-lg transition-all disabled:opacity-50 text-white border border-transparent"
+                          style={{ background: 'linear-gradient(135deg, #d4a5a0 0%, #c49890 100%)' }}>
+                          {status === 'loading' ? 'Sending...' : 'Send Message'}
                         </button>
-
-                        <p className="text-center text-xs text-gray-400">
-                          By submitting, you agree to our <a href="#" className="text-red-600 hover:underline">Privacy Policy</a>
-                        </p>
                       </form>
                     )}
                   </div>
                 </div>
               </Reveal>
             </div>
-
           </div>
         </div>
       </section>
